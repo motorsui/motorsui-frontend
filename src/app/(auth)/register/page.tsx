@@ -25,6 +25,7 @@ const schema = z.object({
   current_city:    z.string().optional(),
   current_state:   z.string().optional(),
   current_country: z.string().optional(),
+  sms_consent:     z.boolean().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -35,6 +36,7 @@ export default function RegisterPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { sms_consent: false },
   })
 
   async function onSubmit(data: FormData) {
@@ -61,6 +63,7 @@ export default function RegisterPage() {
       id: authData.user.id,
       email,
       ...profileData,
+      sms_consent: profileData.sms_consent ?? false,
     })
 
     router.push('/check-email')
@@ -121,6 +124,36 @@ export default function RegisterPage() {
               <Input label="State"   {...register('current_state')}   error={errors.current_state?.message} />
               <Input label="Country" {...register('current_country')} error={errors.current_country?.message} />
             </div>
+          </div>
+
+          <div className="border-t border-[#c4a96a]/30 pt-5 flex flex-col gap-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                {...register('sms_consent')}
+                className="mt-1 h-4 w-4 shrink-0 rounded border border-[#c4a96a] bg-transparent accent-[#9a7c2e] cursor-pointer"
+              />
+              <div>
+                <span className="font-[family-name:var(--font-raleway)] text-sm text-[#1e1a18]">
+                  I agree to receive SMS updates and marketing messages from MotorSui
+                </span>
+                <p className="font-[family-name:var(--font-cormorant)] text-sm text-[#1e1a18]/50 mt-1">
+                  Message and data rates may apply. Reply STOP to unsubscribe at any time.
+                </p>
+              </div>
+            </label>
+
+            <p className="font-[family-name:var(--font-cormorant)] text-sm text-[#1e1a18]/60 leading-relaxed">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" className="text-[#9a7c2e] hover:underline">
+                Terms of Service
+              </Link>
+              {' '}and{' '}
+              <Link href="/privacy" className="text-[#9a7c2e] hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
 
           {serverError && (
