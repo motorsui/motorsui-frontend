@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
 
   const { chart_json, tier, chart_id } = await request.json()
 
-  // Confirm chart_json is present and log its size
   const chartJsonStr = JSON.stringify(chart_json, null, 2)
   console.log(`[interpret] chart_json received — ${chartJsonStr.length} chars, tier=${tier}, chart_id=${chart_id}`)
 
@@ -38,7 +37,6 @@ export async function POST(request: NextRequest) {
   systemPrompt = systemPrompt.replace('[USER_NAME]', user.email ?? 'User')
   systemPrompt = systemPrompt.replace('[TRUE / FALSE]', 'FALSE')
 
-  // Replace multiline template placeholders
   const intakeStart = systemPrompt.indexOf('[INTAKE_JSON')
   const intakeEnd   = systemPrompt.indexOf(']', intakeStart)
   if (intakeStart !== -1 && intakeEnd !== -1) {
@@ -73,13 +71,34 @@ export async function POST(request: NextRequest) {
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 16000,
+    temperature: 0.3,
     system: fullSystemPrompt,
     messages: [
       {
         role: 'user',
-        content:
-          `Here is the chart data for interpretation:\n\n${chartJsonStr}\n\nGenerate a Tier ${tier} interpretation following the system prompt rules.`,
+        content: `Here is the chart data for this interpretation:
+
+${chartJsonStr}
+
+Generate a Tier ${tier} interpretation with the following five sections in this exact order. Go deep on each section. Do not summarize broadly. Do not cover everything shallowly. Minimum word counts are hard floors not targets.
+
+SECTION 1 — HD CORE IDENTITY (400 words minimum)
+Interpret Type, Strategy, Authority, Profile, Definition, Signature, and Not-Self Theme as a living operating system for this specific chart configuration. Use MotorSui secular terminology exclusively. Write at Jovian Archive practitioner depth — not textbook definitions, but what these mechanics mean together for this person.
+
+SECTION 2 — INCARNATION CROSS (300 words minimum)
+Interpret the cross as a single unified dharmic life theme. Name the cross geometry (Right Angle, Left Angle, or Juxtaposition) and what that geometry means for how this cross operates in this life. Name the Quarter and its overarching theme. Name the cross itself as a container for this life's purpose. The four gates inform the cross — they do not replace it. Do not list four gate descriptions separately.
+
+SECTION 3 — CONSCIOUS SUN AND EARTH AXIS (300 words minimum)
+Interpret the Conscious Sun gate (Life's Work) and Conscious Earth gate (Evolution) as a unified embodiment axis. Include the Gene Keys Shadow, Gift, and Siddhi for the Life's Work gate only. Write the axis as what this person is here to embody and metabolize — not abstract concepts.
+
+SECTION 4 — SIDEREAL ASCENDANT, SUN, AND MOON (300 words minimum)
+Interpret the sidereal Lahiri Ascendant, Sun, and Moon using Whole Sign houses. Include the nakshatra for each placement. Write at classical Jyotish depth — not sun sign pop astrology. Include the currently active Mahadasha lord and what natal signatures it is activating.
+
+SECTION 5 — INTEGRATED THREAD (200 words minimum)
+Write one unified paragraph. Name the through-line where the HD Incarnation Cross, the Gene Keys Life's Work axis, and the Jyotish placements converge into a single statement of this person's life geometry. Be direct. No abstractions.
+
+Generate all five sections now without stopping between them.`,
       },
     ],
   })
@@ -91,7 +110,6 @@ export async function POST(request: NextRequest) {
 
   console.log(`[interpret] interpretation generated — ${interpretation.length} chars`)
 
-  // Store interpretation in the correct tier column
   const tierColumn: TierColumn = `interpretation_t${tier}` as TierColumn
 
   if (chart_id) {
