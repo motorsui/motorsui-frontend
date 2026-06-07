@@ -72,7 +72,7 @@ export default async function DashboardPage() {
               <p className="font-[family-name:var(--font-cormorant)] text-lg text-[#1e1a18] mb-6">
                 Generate your sidereal chart to begin.
               </p>
-              <Link href="/charts/generate">
+              <Link href="/charts">
                 <Button variant="primary" size="md">Generate Your Chart</Button>
               </Link>
             </>

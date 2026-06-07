@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Returns the UTC offset in hours that was in effect at the given local birth time,
+// using the IANA timezone database via Intl — correctly handles historical DST.
+function getUtcOffsetHours(
+  timezone: string,
+  year: number, month: number, day: number,
+  hour: number, minute: number
+): number {
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date(utcMs))
+  const v = (t: string) => parseInt(parts.find(p => p.type === t)?.value ?? '0')
+  const localMs = Date.UTC(v('year'), v('month') - 1, v('day'), v('hour') % 24, v('minute'), v('second'))
+  // Round to nearest 0.5 to handle half-hour timezone offsets (e.g. India UTC+5:30)
+  return Math.round((localMs - utcMs) / 3600000 * 2) / 2
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
@@ -22,14 +42,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Location not found: ${geocodeQuery}` }, { status: 400 })
   }
 
-  const lat = parseFloat(geocodeData[0].lat)
-  const lon = parseFloat(geocodeData[0].lon)
+  const latitude  = parseFloat(geocodeData[0].lat)
+  const longitude = parseFloat(geocodeData[0].lon)
 
-  // Get timezone from coordinates
+  // Get IANA timezone name from coordinates
   let timezone = 'UTC'
   try {
     const tzRes = await fetch(
-      `https://www.timeapi.io/api/timezone/coordinate?latitude=${lat}&longitude=${lon}`
+      `https://www.timeapi.io/api/timezone/coordinate?latitude=${latitude}&longitude=${longitude}`
     )
     const tzData = await tzRes.json()
     if (tzData.timeZone) timezone = tzData.timeZone
@@ -37,11 +57,14 @@ export async function POST(request: NextRequest) {
     // Fall back to UTC if timezone lookup fails
   }
 
-  // Parse date and time
+  // Parse birth date and time
   const [year, month, day] = birth_date.split('-').map(Number)
-  const [hour, minute] = birth_time.split(':').map(Number)
+  const [hour, minute]     = birth_time.split(':').map(Number)
 
-  const birthPayload = { year, month, day, hour, minute, lat, lon, tz: timezone }
+  // Compute historical UTC offset for the birth date/time in the resolved timezone
+  const utc_offset = getUtcOffsetHours(timezone, year, month, day, hour, minute)
+
+  const birthPayload = { year, month, day, hour, minute, utc_offset, latitude, longitude }
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.motorsui.com'
 
@@ -60,8 +83,9 @@ export async function POST(request: NextRequest) {
   ])
 
   if (!hdRes.ok || !natalRes.ok) {
-    const hdErr = !hdRes.ok ? await hdRes.text() : ''
+    const hdErr    = !hdRes.ok    ? await hdRes.text()    : ''
     const natalErr = !natalRes.ok ? await natalRes.text() : ''
+    console.error('HD error:', hdErr, '| Natal error:', natalErr)
     return NextResponse.json(
       { error: 'Chart calculation failed', detail: hdErr || natalErr },
       { status: 500 }
@@ -71,9 +95,9 @@ export async function POST(request: NextRequest) {
   const [hdData, natalData] = await Promise.all([hdRes.json(), natalRes.json()])
 
   const chart_json = {
-    hd: hdData,
+    hd:    hdData,
     natal: natalData,
-    birth: { birth_date, birth_time, birth_city, birth_state, birth_country, lat, lon, timezone },
+    birth: { birth_date, birth_time, birth_city, birth_state, birth_country, latitude, longitude, timezone, utc_offset },
   }
 
   // Upsert chart row
