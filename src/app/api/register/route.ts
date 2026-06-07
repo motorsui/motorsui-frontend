@@ -62,24 +62,31 @@ export async function POST(request: NextRequest) {
   }
 
   // GHL contact creation — fire and forget, never blocks registration
-  const webhookUrl = process.env.GHL_WEBHOOK_URL
-  if (webhookUrl) {
-    fetch(webhookUrl, {
+  const ghlApiKey = process.env.GHL_API_KEY
+  const ghlLocationId = process.env.GHL_LOCATION_ID
+  if (ghlApiKey && ghlLocationId) {
+    fetch('https://services.leadconnectorhq.com/contacts/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': '2021-07-28',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         firstName: first_name,
         lastName: last_name,
         email,
         phone: cell,
+        locationId: ghlLocationId,
+        address1: current_city,
         city: current_city,
         state: current_state,
         country: current_country,
         tags: ['motorsui-registration', 'tier-1'],
-        smsConsent: sms_consent ?? false,
+        customField: { sms_consent: sms_consent ?? false },
         source: 'MotorSui Registration',
       }),
-    }).catch(err => console.error('GHL webhook error:', err))
+    }).catch(err => console.error('GHL contact creation error:', err))
   }
 
   return NextResponse.json({ success: true })
