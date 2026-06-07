@@ -9,7 +9,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import { createClient } from '@/lib/supabase/client'
 
 const schema = z.object({
   first_name:      z.string().min(1, 'First name is required'),
@@ -41,32 +40,21 @@ export default function RegisterPage() {
 
   async function onSubmit(data: FormData) {
     setServerError(null)
-    const supabase = createClient()
-
-    const { email, password, ...profileData } = data
-
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
-
-    if (authError) {
-      setServerError(authError.message)
-      return
-    }
-
-    if (!authData.user) {
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setServerError(json.error || 'Registration failed. Please try again.')
+        return
+      }
+      router.push('/check-email')
+    } catch {
       setServerError('Registration failed. Please try again.')
-      return
     }
-
-    // Auth user created — attempt profile insert
-    // May fail before email confirmation due to RLS; will be retried on first authenticated session
-    await supabase.from('profiles').insert({
-      id: authData.user.id,
-      email,
-      ...profileData,
-      sms_consent: profileData.sms_consent ?? false,
-    })
-
-    router.push('/check-email')
   }
 
   const sectionLabel = 'font-[family-name:var(--font-raleway)] text-xs font-semibold text-[#9a7c2e] uppercase tracking-widest mb-4'
