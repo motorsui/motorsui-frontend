@@ -19,24 +19,36 @@ export async function POST(request: NextRequest) {
 
   const { chart_json, tier, chart_id } = await request.json()
 
+  // Confirm chart_json is present and log its size
+  const chartJsonStr = JSON.stringify(chart_json, null, 2)
+  console.log(`[interpret] chart_json received — ${chartJsonStr.length} chars, tier=${tier}, chart_id=${chart_id}`)
+
+  if (!chart_json || chartJsonStr === 'null') {
+    return NextResponse.json({ error: 'No chart data received' }, { status: 400 })
+  }
+
   // Fetch all four governing documents in parallel
   const [systemDoc, coreDoc, astroDoc, hdDoc] = await Promise.all(
     CLAUDE_DOCS.map(url => fetch(url).then(r => r.text()))
   )
 
-  // Inject session parameters into CLAUDE_SYSTEM.md
-  // Inject session parameters into the system prompt template
+  // Inject session parameters into CLAUDE_SYSTEM.md template
   let systemPrompt = systemDoc
   systemPrompt = systemPrompt.replace('[TIER_1 / TIER_2 / TIER_3]', `TIER_${tier}`)
   systemPrompt = systemPrompt.replace('[USER_NAME]', user.email ?? 'User')
-  systemPrompt = systemPrompt.replace('[CHART_JSON]', JSON.stringify(chart_json, null, 2))
   systemPrompt = systemPrompt.replace('[TRUE / FALSE]', 'FALSE')
 
-  // Replace multiline template placeholders without dotAll regex
+  // Replace multiline template placeholders
   const intakeStart = systemPrompt.indexOf('[INTAKE_JSON')
   const intakeEnd   = systemPrompt.indexOf(']', intakeStart)
   if (intakeStart !== -1 && intakeEnd !== -1) {
     systemPrompt = systemPrompt.slice(0, intakeStart) + 'N/A' + systemPrompt.slice(intakeEnd + 1)
+  }
+
+  const chartJsonAStart = systemPrompt.indexOf('[CHART_JSON')
+  const chartJsonAEnd   = systemPrompt.indexOf(']', chartJsonAStart)
+  if (chartJsonAStart !== -1 && chartJsonAEnd !== -1) {
+    systemPrompt = systemPrompt.slice(0, chartJsonAStart) + chartJsonStr + systemPrompt.slice(chartJsonAEnd + 1)
   }
 
   const chartBStart = systemPrompt.indexOf('[CHART_JSON_B')
@@ -55,6 +67,8 @@ export async function POST(request: NextRequest) {
     hdDoc,
   ].join('')
 
+  console.log(`[interpret] system prompt assembled — ${fullSystemPrompt.length} chars`)
+
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   const message = await anthropic.messages.create({
@@ -64,7 +78,8 @@ export async function POST(request: NextRequest) {
     messages: [
       {
         role: 'user',
-        content: `Generate the Tier ${tier} interpretation for this chart. Begin when ready.`,
+        content:
+          `Here is the chart data for interpretation:\n\n${chartJsonStr}\n\nGenerate a Tier ${tier} interpretation following the system prompt rules.`,
       },
     ],
   })
@@ -73,6 +88,8 @@ export async function POST(request: NextRequest) {
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
     .map(block => block.text)
     .join('')
+
+  console.log(`[interpret] interpretation generated — ${interpretation.length} chars`)
 
   // Store interpretation in the correct tier column
   const tierColumn: TierColumn = `interpretation_t${tier}` as TierColumn
