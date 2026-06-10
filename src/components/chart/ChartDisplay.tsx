@@ -29,7 +29,7 @@ interface GroupConfig {
   rows:   RowConfig[]
 }
 
-const TRADITIONAL_PLANET_ROWS: RowConfig[] = [
+const PLANET_ROWS: RowConfig[] = [
   { label: 'Sun',     column: 'interp_sun'     },
   { label: 'Moon',    column: 'interp_moon'    },
   { label: 'Mercury', column: 'interp_mercury' },
@@ -37,73 +37,31 @@ const TRADITIONAL_PLANET_ROWS: RowConfig[] = [
   { label: 'Mars',    column: 'interp_mars'    },
   { label: 'Jupiter', column: 'interp_jupiter' },
   { label: 'Saturn',  column: 'interp_saturn'  },
+  { label: 'Uranus',  column: 'interp_uranus'  },
+  { label: 'Neptune', column: 'interp_neptune' },
+  { label: 'Pluto',   column: 'interp_pluto'   },
 ]
 
-const MODERN_PLANET_ROWS: RowConfig[] = [
-  { label: 'Uranus',         column: 'interp_uranus'  },
-  { label: 'Neptune',        column: 'interp_neptune' },
-  { label: 'Pluto',          column: 'interp_pluto'   },
-  { label: 'Chiron',         column: null },
-  { label: 'Juno',           column: null },
-  { label: 'Lilith',         column: null },
-  { label: 'Vertex',         column: null },
-  { label: 'Lot of Fortune', column: null },
-]
-
-function getAstroGroups(mode: ChartMode): GroupConfig[] {
-  const outerBodiesGroup: GroupConfig = {
-    id: 'outer', header: 'OUTER BODIES & POINTS', rows: MODERN_PLANET_ROWS,
-  }
+function getAstroGroups(_mode: ChartMode): GroupConfig[] {
   return [
     { id: 'lagna', header: 'LAGNA', rows: [
       { label: 'Lagna (Ascendant)',      column: 'interp_lagna'           },
-      { label: 'Lagna Lord',             column: 'interp_lagna_lord'      },
-      { label: 'Lagna Nakshatra & Pada', column: 'interp_lagna_nakshatra' },
     ]},
-    { id: 'planets', header: 'PLANETS', rows: TRADITIONAL_PLANET_ROWS },
-    ...(mode === 'modern' ? [outerBodiesGroup] : []),
-    { id: 'nodes', header: 'RAHU / KETU AXIS', rows: [
-      { label: 'Rahu',        column: 'interp_rahu'          },
-      { label: 'Ketu',        column: 'interp_ketu'          },
-      { label: 'Nodal Story', column: 'interp_rahu_ketu_axis'},
+    { id: 'planets', header: 'PLANETS', rows: PLANET_ROWS },
+    { id: 'nodes', header: 'RAHU / KETU', rows: [
+      { label: 'Rahu', column: 'interp_rahu' },
+      { label: 'Ketu', column: 'interp_ketu' },
     ]},
-    { id: 'dignities', header: 'DIGNITIES & STRENGTH', rows: [
+    { id: 'dignities', header: 'DIGNITIES', rows: [
       { label: 'Planetary Dignities', column: 'interp_dignities' },
-      { label: 'Shadbala Strength',   column: null               },
-    ]},
-    { id: 'aspects', header: 'ASPECTS', rows: [
-      { label: 'All Active Aspects', column: 'interp_aspects' },
-      { label: 'Special Aspects',    column: null             },
-    ]},
-    { id: 'yogas', header: 'YOGAS', rows: [
-      { label: 'Active Yogas', column: 'interp_yogas' },
-      { label: 'Raja Yogas',   column: null           },
-      { label: 'Dhana Yogas',  column: null           },
-      { label: 'Moksha Yogas', column: null           },
-    ]},
-    { id: 'arudha', header: 'ARUDHA PADAS', rows: [
-      { label: 'Arudha Lagna', column: 'interp_arudha_padas' },
-      { label: 'Dhana Pada',   column: null },
-      { label: 'Vikrama Pada', column: null },
-      { label: 'Matri Pada',   column: null },
-      { label: 'Mantra Pada',  column: null },
-      { label: 'Roga Pada',    column: null },
-      { label: 'Dara Pada',    column: null },
-      { label: 'Ashtama Pada', column: null },
-      { label: 'Bhagya Pada',  column: null },
-      { label: 'Karma Pada',   column: null },
-      { label: 'Labha Pada',   column: null },
-      { label: 'Vyaya Pada',   column: null },
     ]},
     { id: 'dashas', header: 'DASHAS', rows: [
-      { label: 'Vimshottari Dasha',      column: 'interp_mahadasha'        },
-      { label: 'Active Mahadasha',        column: 'interp_mahadasha'        },
-      { label: 'Active Antardasha',       column: 'interp_antardasha'       },
-      { label: 'Active Pratyantar Dasha', column: 'interp_pratyantar'       },
-      { label: 'Upcoming Transitions',    column: 'interp_dasha_transitions'},
+      { label: 'Mahadasha',            column: 'interp_mahadasha'        },
+      { label: 'Antardasha',           column: 'interp_antardasha'       },
+      { label: 'Upcoming Transitions', column: 'interp_dasha_transitions'},
     ]},
     { id: 'purusharthas', header: 'PURUSHARTHAS', rows: [
-      { label: 'Dharma · Artha · Kama · Moksha Balance', column: 'interp_purusharthas' },
+      { label: 'Dharma · Artha · Kama · Moksha', column: 'interp_purusharthas' },
     ]},
   ]
 }
