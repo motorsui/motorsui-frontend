@@ -46,7 +46,7 @@ const SECTIONS: SectionDef[] = [
   { column: 'interp_pluto',             name: 'Pluto placement',                                        planetKey: 'Pluto',      wordCap: 1500 },
   { column: 'interp_rahu',              name: 'Rahu placement',                                         planetKey: 'NorthNode',  wordCap: 1750 },
   { column: 'interp_ketu',              name: 'Ketu placement',                                         planetKey: 'SouthNode',  wordCap: 1750 },
-  { column: 'interp_dignities',         name: 'all planetary dignities',                                                         wordCap: 1800 },
+  { column: 'interp_dignities',         name: 'all planetary dignities',                                                         wordCap: 1300 },
   { column: 'interp_mahadasha',         name: 'the active Mahadasha',                                                            wordCap: 1200 },
   { column: 'interp_antardasha',        name: 'the active Antardasha',                                                           wordCap: 1200 },
   { column: 'interp_dasha_transitions', name: 'upcoming Dasha transitions',                                                      wordCap: 1200 },
