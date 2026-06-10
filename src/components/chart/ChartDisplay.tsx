@@ -32,10 +32,10 @@ interface GroupConfig {
 const TRADITIONAL_PLANET_ROWS: RowConfig[] = [
   { label: 'Sun',     column: 'interp_sun'     },
   { label: 'Moon',    column: 'interp_moon'    },
-  { label: 'Mars',    column: 'interp_mars'    },
   { label: 'Mercury', column: 'interp_mercury' },
-  { label: 'Jupiter', column: 'interp_jupiter' },
   { label: 'Venus',   column: 'interp_venus'   },
+  { label: 'Mars',    column: 'interp_mars'    },
+  { label: 'Jupiter', column: 'interp_jupiter' },
   { label: 'Saturn',  column: 'interp_saturn'  },
 ]
 
