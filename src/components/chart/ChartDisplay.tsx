@@ -75,15 +75,6 @@ function getAstroGroups(mode: ChartMode): GroupConfig[] {
       { label: 'All Active Aspects', column: 'interp_aspects' },
       { label: 'Special Aspects',    column: null             },
     ]},
-    { id: 'karakas', header: 'CHARA KARAKAS', rows: [
-      { label: 'Atmakaraka',   column: 'interp_atmakaraka'   },
-      { label: 'Amatyakaraka', column: 'interp_amatyakaraka' },
-      { label: 'Darakaraka',   column: 'interp_darakaraka'   },
-      { label: 'Putrakaraka',  column: 'interp_putrakaraka'  },
-      { label: 'Bhratikaraka', column: 'interp_bhratikaraka' },
-      { label: 'Matrikaraka',  column: 'interp_matrikaraka'  },
-      { label: 'Gnatikaraka',  column: 'interp_gnatikaraka'  },
-    ]},
     { id: 'yogas', header: 'YOGAS', rows: [
       { label: 'Active Yogas', column: 'interp_yogas' },
       { label: 'Raja Yogas',   column: null           },
