@@ -48,9 +48,7 @@ const SECTIONS: SectionDef[] = [
   { column: 'interp_ketu',              name: 'Ketu placement',                                         planetKey: 'SouthNode',  wordCap: 1750 },
   { column: 'interp_dignities',         name: 'all planetary dignities',                                                         wordCap: 1300 },
   { column: 'interp_purusharthas',      name: 'the Dharma, Artha, Kama, Moksha balance',                                        wordCap: 1100 },
-  { column: 'interp_mahadasha',         name: 'the active Mahadasha',                                                            wordCap: 500  },
-  { column: 'interp_antardasha',        name: 'the active Antardasha',                                                           wordCap: 500  },
-  { column: 'interp_dasha_transitions', name: 'upcoming Dasha transitions',                                                      wordCap: 3500 },
+  { column: 'interp_mahadasha',         name: 'the Dasha Timeline: active Mahadasha first (500 words), then upcoming Dasha sub-periods to age 30 (500 words for the immediate next sub-period, 150 words each for every sub-period after that until age 30), then the current Antardasha last (500 words)', wordCap: 2000 },
 
   // ─── D-chart sections ───────────────────────────────────────────────────────
   // Each interprets one divisional chart from the natal.divisional_charts payload.

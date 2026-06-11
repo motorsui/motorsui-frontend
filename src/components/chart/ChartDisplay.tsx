@@ -56,9 +56,7 @@ function getAstroGroups(_mode: ChartMode): GroupConfig[] {
       { label: 'Planetary Dignities', column: 'interp_dignities' },
     ]},
     { id: 'dashas', header: 'DASHAS', rows: [
-      { label: 'Mahadasha',            column: 'interp_mahadasha'        },
-      { label: 'Antardasha',           column: 'interp_antardasha'       },
-      { label: 'Upcoming Transitions', column: 'interp_dasha_transitions'},
+      { label: 'Dasha Timeline', column: 'interp_mahadasha' },
     ]},
     { id: 'purusharthas', header: 'PURUSHARTHAS', rows: [
       { label: 'Dharma · Artha · Kama · Moksha', column: 'interp_purusharthas' },
