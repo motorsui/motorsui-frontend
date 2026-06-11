@@ -6,8 +6,7 @@ import { postProcess } from '@/lib/interpret/post-process'
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
 // Parenting by Astrology sections receive:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (voice/tier rules only, identity stripped)
-//   + CLAUDE_NATAL_PARENTING.md
+//   CLAUDE_SYSTEM.md + CLAUDE_CORE_ASTRO_PARENTING.md + CLAUDE_NATAL_PARENTING.md
 //
 // CLAUDE_ASTRO.md is NOT loaded separately.
 // HD data is stripped from the payload (Layer 1).
@@ -16,7 +15,7 @@ const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/
 
 const PARENTING_DOC_URLS = {
   system:    `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:      `${DOC_BASE}/CLAUDE_CORE.md`,
+  core:      `${DOC_BASE}/CLAUDE_CORE_ASTRO_PARENTING.md`,
   parenting: `${DOC_BASE}/CLAUDE_NATAL_PARENTING.md`,
 }
 
@@ -65,12 +64,6 @@ function buildParentingPayload(chartJson: unknown): unknown {
   const natal = payload.natal as Record<string, unknown> | undefined
   if (natal && 'karmic_gate_overlay' in natal) delete natal.karmic_gate_overlay
   return payload
-}
-
-// ─── Layer 2 — Identity stripper ─────────────────────────────────────────────
-
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(/## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/, '')
 }
 
 // ─── Aspect extraction ────────────────────────────────────────────────────────
@@ -260,7 +253,7 @@ export async function POST(request: NextRequest) {
   const parentingSystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
+    coreDoc,
     '\n\n---\n\n',
     parentingDoc,
   ].join('')

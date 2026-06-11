@@ -8,19 +8,13 @@ import { postProcess } from '@/lib/interpret/post-process'
 // Discipline-specific doc sets. Never load all three for a single section.
 //
 // ASTROLOGY sections receive:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (voice/tier rules only, identity stripped) + CLAUDE_ASTRO.md
-//
-// HD sections will receive (future build):
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (voice/tier rules only, identity stripped) + CLAUDE_HD.md
-//
-// Cross-system sections (Karmic Gate Overlay) will receive both discipline docs,
-// explicitly labeled.
+//   CLAUDE_SYSTEM.md + CLAUDE_CORE_ASTROLOGY.md + CLAUDE_ASTRO.md
 
 const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
 
 const ASTRO_DOC_URLS = {
   system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE.md`,
+  core:   `${DOC_BASE}/CLAUDE_CORE_ASTROLOGY.md`,
   astro:  `${DOC_BASE}/CLAUDE_ASTRO.md`,
 }
 
@@ -98,24 +92,6 @@ function buildAstrologyPayload(chartJson: unknown): unknown {
   }
 
   return payload
-}
-
-// ─── Layer 2 — Identity stripper ─────────────────────────────────────────────
-//
-// CLAUDE_CORE.md contains two distinct blocks:
-//   1. ## SYSTEM IDENTITY — declares three-system expert operating simultaneously
-//      across Jyotish, HD, and Gene Keys. This is the contamination source.
-//   2. Everything else — voice rules, tier architecture, psychological frameworks,
-//      hard rules, session protocol, output formatting. These are needed.
-//
-// For discipline-specific sections, strip ## SYSTEM IDENTITY entirely.
-// Voice and tier rules remain intact.
-
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(
-    /## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/,
-    ''
-  )
 }
 
 // ─── Aspect extraction ────────────────────────────────────────────────────────
@@ -325,17 +301,14 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace(/\[INTAKE_JSON[^\]]*\]/g, 'N/A')
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'N/A')
 
-  // Layer 2 — Astrology system prompt:
+  // Astrology system prompt:
   //   CLAUDE_SYSTEM.md (session config)
-  //   + CLAUDE_CORE.md voice/tier rules with three-system identity block stripped
+  //   + CLAUDE_CORE_ASTROLOGY.md (voice, hard rules, psychological frameworks)
   //   + CLAUDE_ASTRO.md (full astrology rules)
-  //
-  // The model receives voice rules, tier enforcement, psychological frameworks,
-  // and hard rules — but NOT the three-system identity declaration.
   const astrologySystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
+    coreDoc,
     '\n\n---\n\n',
     astroDoc,
   ].join('')
