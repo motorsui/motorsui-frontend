@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
@@ -172,6 +173,13 @@ function extractActiveGates(hdData: unknown): Array<{key: string}> {
     .map(n => ({ key: String(n) }))
 }
 
+// ─── Self-review footer ───────────────────────────────────────────────────────
+
+const SELF_REVIEW =
+  'As you write each sentence: if you use an em dash (—), replace it immediately with a ' +
+  'comma or restructure the sentence. If you use "is not" or "are not", rewrite as an ' +
+  'affirmative statement before continuing.'
+
 // ─── Layer 3 + User message builder ──────────────────────────────────────────
 
 function buildHDUserMessage(name: string, hdPayloadStr: string, wordCap: number): string {
@@ -191,6 +199,7 @@ function buildHDUserMessage(name: string, hdPayloadStr: string, wordCap: number)
     `Speak directly to this person in second person, present tense. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
+    SELF_REVIEW + ' ' +
     `Write up to ${wordCap} words. Do not exceed ${wordCap} words.`
   )
 }
@@ -302,10 +311,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(raw, anthropic, section.column)
 
           if (chart_id && text) {
             const { error: dbError } = await adminSupabase
@@ -355,8 +366,15 @@ export async function POST(request: NextRequest) {
             .map(b => b.text)
             .join('')
 
-          if (text) {
-            channelResults.set(ch.key, text)
+          const channelRaw = message.content
+            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+            .map(b => b.text)
+            .join('')
+
+          const channelText = await postProcess(channelRaw, anthropic, colKey)
+
+          if (channelText) {
+            channelResults.set(ch.key, channelText)
             if (chart_id) {
               const { error: dbError } = await adminSupabase
                 .from('charts')
@@ -370,7 +388,7 @@ export async function POST(request: NextRequest) {
           }
 
           completed.push(colKey)
-          console.log(`[interpret-hd] channel ${ch.key} done — ${text.length} chars`)
+          console.log(`[interpret-hd] channel ${ch.key} done — ${channelText.length} chars`)
           send({ column: colKey, status: 'done', chars: text.length })
 
         } catch (err) {
@@ -411,8 +429,15 @@ export async function POST(request: NextRequest) {
             .map(b => b.text)
             .join('')
 
-          if (text) {
-            gateResults.set(gate.key, text)
+          const gateRaw = message.content
+            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+            .map(b => b.text)
+            .join('')
+
+          const gateText = await postProcess(gateRaw, anthropic, colKey)
+
+          if (gateText) {
+            gateResults.set(gate.key, gateText)
             if (chart_id) {
               const { error: dbError } = await adminSupabase
                 .from('charts')
@@ -426,7 +451,7 @@ export async function POST(request: NextRequest) {
           }
 
           completed.push(colKey)
-          console.log(`[interpret-hd] gate ${gate.key} done — ${text.length} chars`)
+          console.log(`[interpret-hd] gate ${gate.key} done — ${gateText.length} chars`)
           send({ column: colKey, status: 'done', chars: text.length })
 
         } catch (err) {

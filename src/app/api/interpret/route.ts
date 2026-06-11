@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
@@ -151,6 +152,74 @@ function getAspectPartners(chartJson: unknown, planetKey: string): string[] {
   }
 }
 
+// ─── Self-review footer ───────────────────────────────────────────────────────
+// Appended to every user message. Fires at generation time.
+
+const SELF_REVIEW =
+  'As you write each sentence: if you use an em dash (—), replace it immediately with a ' +
+  'comma or restructure the sentence. If you use "is not" or "are not", rewrite as an ' +
+  'affirmative statement before continuing.'
+
+// ─── 4a. Dasha template message builder ──────────────────────────────────────
+
+function buildDashaUserMessage(chartJsonStr: string): string {
+  return (
+    'This is a Sidereal Lahiri Jyotish section. ' +
+    'There is no Human Design data in this payload. ' +
+    'Do not reference gates, channels, centers, Incarnation Cross, type, profile, ' +
+    'authority, variables, or any Human Design mechanic anywhere in this section. ' +
+    'Interpret using classical Jyotish mechanics only.\n\n' +
+    `Here is the complete chart data:\n\n${chartJsonStr}\n\n` +
+    'Write the Dasha Timeline. Follow this exact hierarchical structure — do not flatten it:\n\n' +
+    '**CURRENT MAHADASHA NAME** (dates)\n' +
+    '300 words on the overall quality and themes of this Mahadasha.\n\n' +
+    'Current Antardasha: NAME (dates)\n' +
+    '400 words on what is active right now.\n\n' +
+    'Next Antardasha: NAME (dates)\n' +
+    '400 words on what is coming next.\n\n' +
+    'Each remaining Antardasha within the current Mahadasha: NAME (dates)\n' +
+    '150 words each. Continue until the current Mahadasha ends.\n\n' +
+    '**NEXT MAHADASHA NAME** (dates)\n' +
+    '300 words on the themes of this next major chapter.\n\n' +
+    'Each Antardasha within the next Mahadasha: NAME (dates)\n' +
+    '150 words each through the end of the next Mahadasha.\n\n' +
+    'Rules: Mahadasha headings are bold and all-caps. ' +
+    'Antardasha entries are subcategories beneath their Mahadasha — never elevated to the same level. ' +
+    'Speak directly to this person in second person, present tense. ' +
+    'No bullet points. No markdown except bold Mahadasha headings. No em dashes. ' +
+    '"Is not" and "are not" are forbidden — rewrite as affirmative statements immediately. ' +
+    SELF_REVIEW + ' ' +
+    'Write up to 2000 words. Do not exceed 2000 words.'
+  )
+}
+
+// ─── 4b. Purusharthas template message builder ───────────────────────────────
+
+function buildPurusharthasUserMessage(chartJsonStr: string): string {
+  return (
+    'This is a Sidereal Lahiri Jyotish section. ' +
+    'There is no Human Design data in this payload. ' +
+    'Interpret using classical Jyotish mechanics only.\n\n' +
+    `Here is the complete chart data:\n\n${chartJsonStr}\n\n` +
+    'Write the Dharma, Artha, Kama, Moksha section. Follow this exact format:\n\n' +
+    'Order the four aims from highest percentage to lowest based on the chart data. ' +
+    'Never use a fixed Dharma/Artha/Kama/Moksha sequence regardless of what the chart shows. ' +
+    'Each sub-section heading uses percentage and planet list only — the aim name may appear ' +
+    'in the prose on first mention but never as a standalone bold header.\n\n' +
+    'Format (example with placeholder values):\n' +
+    '44% — Sun, Moon, Venus, Ketu\n' +
+    '[Prose covering this aim and what it means for this person.]\n\n' +
+    '31% — Mars, Saturn\n' +
+    '[Prose.]\n\n' +
+    'Continue for all four aims in descending percentage order.\n\n' +
+    'Speak directly to this person in second person, present tense. ' +
+    'No bullet points. No markdown. No em dashes. ' +
+    '"Is not" and "are not" are forbidden — rewrite as affirmative statements. ' +
+    SELF_REVIEW + ' ' +
+    'Write up to 1100 words. Do not exceed 1100 words.'
+  )
+}
+
 // ─── Layer 3 + User message builder ──────────────────────────────────────────
 //
 // Every astrology section user message opens with a hard discipline declaration.
@@ -203,6 +272,7 @@ function buildUserMessage(
     ` Speak directly to this person in second person, present tense. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
+    SELF_REVIEW + ' ' +
     `Write up to ${section.wordCap} words. Do not exceed ${section.wordCap} words.`
   )
 }
@@ -302,23 +372,29 @@ export async function POST(request: NextRequest) {
           // Layer 1: stripped payload
           // Layer 2: astrology-only system prompt (identity block removed)
           // Layer 3: discipline declaration prepended in buildUserMessage
+          // 4. Use template builders for dasha and Purusharthas sections
+          const userMessage =
+            section.column === 'interp_mahadasha'
+              ? buildDashaUserMessage(astrologyPayloadStr)
+              : section.column === 'interp_purusharthas'
+              ? buildPurusharthasUserMessage(astrologyPayloadStr)
+              : buildUserMessage(section, astrologyPayloadStr, astrologyPayload)
+
           const message = await anthropic.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 4096,
             temperature: 0.3,
             system: astrologySystemPrompt,
-            messages: [
-              {
-                role: 'user',
-                content: buildUserMessage(section, astrologyPayloadStr, astrologyPayload),
-              },
-            ],
+            messages: [{ role: 'user', content: userMessage }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          // Post-process: remove em dashes, fix "is not"/"are not"
+          const text = await postProcess(raw, anthropic, section.column)
 
           if (chart_id && text) {
             const { error: dbError } = await adminSupabase

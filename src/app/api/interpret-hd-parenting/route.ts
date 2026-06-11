@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
@@ -8,15 +9,14 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 //   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (voice/tier rules only, identity stripped)
 //   + CLAUDE_HD_PARENTING.md
 //
-// CLAUDE_HD.md is NOT loaded separately — CLAUDE_HD_PARENTING.md governs mechanics.
-// Natal astrology data is stripped from the payload (same Layer 1 as interpret-hd/route.ts).
+// Natal astrology data is stripped from the payload (Layer 1).
 
 const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
 
 const HD_PARENTING_DOC_URLS = {
-  system:     `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:       `${DOC_BASE}/CLAUDE_CORE.md`,
-  parenting:  `${DOC_BASE}/CLAUDE_HD_PARENTING.md`,
+  system:    `${DOC_BASE}/CLAUDE_SYSTEM.md`,
+  core:      `${DOC_BASE}/CLAUDE_CORE.md`,
+  parenting: `${DOC_BASE}/CLAUDE_HD_PARENTING.md`,
 }
 
 // ─── Fixed section definitions ────────────────────────────────────────────────
@@ -155,23 +155,24 @@ const HD_PARENTING_FIXED_SECTIONS: HDParentingSectionDef[] = [
   },
 ]
 
+// ─── Self-review footer ───────────────────────────────────────────────────────
+
+const SELF_REVIEW =
+  'As you write each sentence: if you use an em dash (—), replace it immediately with a ' +
+  'comma or restructure the sentence. If you use "is not" or "are not", rewrite as an ' +
+  'affirmative statement before continuing.'
+
 // ─── Layer 1 — HD payload builder ────────────────────────────────────────────
 
 function buildHDParentingPayload(chartJson: unknown): unknown {
   const json = chartJson as Record<string, unknown>
-  return {
-    hd:    json.hd,
-    birth: json.birth,
-  }
+  return { hd: json.hd, birth: json.birth }
 }
 
 // ─── Layer 2 — Identity stripper ─────────────────────────────────────────────
 
 function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(
-    /## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/,
-    ''
-  )
+  return coreDoc.replace(/## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/, '')
 }
 
 // ─── Channel extractor ────────────────────────────────────────────────────────
@@ -180,10 +181,7 @@ function extractDefinedChannels(hdData: unknown): Array<{key: string; name: stri
   const hd  = hdData as Record<string, unknown>
   const raw = (hd?.channels ?? hd?.defined_channels ?? []) as Array<Record<string, unknown>>
   return raw
-    .map(ch => ({
-      key:  String(ch.channel ?? ch.id ?? ''),
-      name: String(ch.name   ?? ch.channel ?? ''),
-    }))
+    .map(ch => ({ key: String(ch.channel ?? ch.id ?? ''), name: String(ch.name ?? ch.channel ?? '') }))
     .filter(ch => ch.key !== '')
 }
 
@@ -206,6 +204,7 @@ function buildHDParentingUserMessage(name: string, hdPayloadStr: string, wordCap
     `Address the parent in second person, present tense. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
+    SELF_REVIEW + ' ' +
     `Write up to ${wordCap} words. Do not exceed ${wordCap} words.`
   )
 }
@@ -306,10 +305,13 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          // Post-process: em dashes + "is not"/"are not"
+          const text = await postProcess(raw, anthropic, section.column)
 
           if (chart_id && text) {
             const { error: dbError } = await adminSupabase
@@ -330,7 +332,6 @@ export async function POST(request: NextRequest) {
       }
 
       // ─── Channel sections (variable) ─────────────────────────────────
-      // Written to parenting_hd_channels JSONB column, keyed by channel string e.g. "2-14"
       for (const ch of channels) {
         const colKey = `parenting_channel_${ch.key.replace('-', '_')}`
         if (skipSet.has(colKey)) continue
@@ -355,10 +356,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(raw, anthropic, colKey)
 
           if (text) {
             channelResults.set(ch.key, text)
