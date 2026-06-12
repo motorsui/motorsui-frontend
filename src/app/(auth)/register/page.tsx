@@ -51,7 +51,7 @@ export default function RegisterPage() {
         setServerError(json.error || 'Registration failed. Please try again.')
         return
       }
-      router.push('/check-email')
+      router.push('/products')
     } catch {
       setServerError('Registration failed. Please try again.')
     }
