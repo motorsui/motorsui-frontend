@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
-// Synastry is a Jyotish product. Uses same astrology docs as natal route:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (identity stripped) + CLAUDE_ASTRO.md
+// Synastry is a Jyotish product. Uses:
+//   CLAUDE_SYSTEM.md + CLAUDE_CORE_SYNASTRY.md (self-contained)
 //
 // Payload contains both persons' natal astrology data.
 // HD data stripped from both charts before sending.
@@ -15,8 +16,7 @@ const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/
 
 const ASTRO_DOC_URLS = {
   system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE.md`,
-  astro:  `${DOC_BASE}/CLAUDE_ASTRO.md`,
+  core:   `${DOC_BASE}/CLAUDE_CORE_SYNASTRY.md`,
 }
 
 // ─── Section definitions — 30 fixed sections ─────────────────────────────────
@@ -199,14 +199,12 @@ const SYNASTRY_SECTIONS: SynSectionDef[] = [
   },
 ]
 
-// ─── Layer 2 — Identity stripper (same as natal route) ───────────────────────
+// ─── Self-review footer ───────────────────────────────────────────────────────
 
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(
-    /## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/,
-    ''
-  )
-}
+const SELF_REVIEW =
+  'As you write each sentence: if you use an em dash (—), replace it immediately with a ' +
+  'comma or restructure the sentence. If you use "is not" or "are not", rewrite as an ' +
+  'affirmative statement before continuing.'
 
 // ─── Layer 1 — Synastry payload builder ──────────────────────────────────────
 //
@@ -248,6 +246,7 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
     `Reference Person B by name if a name is available in the birth data, otherwise as your partner. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
+    SELF_REVIEW + ' ' +
     `Write up to ${section.wordCap} words. Do not exceed ${section.wordCap} words.`
 
   return (
@@ -332,10 +331,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch governing documents in parallel
-  const [systemDoc, coreDoc, astroDoc] = await Promise.all([
+  const [systemDoc, coreDoc] = await Promise.all([
     fetch(ASTRO_DOC_URLS.system).then(r => r.text()),
     fetch(ASTRO_DOC_URLS.core).then(r => r.text()),
-    fetch(ASTRO_DOC_URLS.astro).then(r => r.text()),
   ])
 
   // Configure system doc — note: CHART_JSON_B is provided (two-person session)
@@ -350,9 +348,7 @@ export async function POST(request: NextRequest) {
   const synastrySystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
-    '\n\n---\n\n',
-    astroDoc,
+    coreDoc,
   ].join('')
 
   console.log(
@@ -391,10 +387,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(raw, anthropic, section.column)
 
           if (synastryId && text) {
             const { error: dbError } = await adminSupabase

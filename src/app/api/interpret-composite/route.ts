@@ -1,26 +1,26 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
 // HD Composite is an HD product. Uses:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (identity stripped) + CLAUDE_HD.md
+//   CLAUDE_SYSTEM.md + CLAUDE_CORE_COMPOSITE.md (self-contained)
 //
 // CLAUDE_ASTRO.md is NOT loaded — no Jyotish content in composite sections.
 // Payload contains only HD data from both persons — natal astrology stripped.
 //
 // Three contamination layers (reversed from astrology route):
 //   Layer 1 — Payload: only { person_a: {hd, birth}, person_b: {hd, birth} }
-//   Layer 2 — System prompt: no ASTRO doc; SYSTEM IDENTITY stripped from CORE
+//   Layer 2 — System prompt: no ASTRO doc; CLAUDE_CORE_COMPOSITE.md loaded directly
 //   Layer 3 — User message: hard declaration forbidding Jyotish; compatibility authorized
 
 const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
 
 const HD_DOC_URLS = {
   system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE.md`,
-  hd:     `${DOC_BASE}/CLAUDE_HD.md`,
+  core:   `${DOC_BASE}/CLAUDE_CORE_COMPOSITE.md`,
 }
 
 // ─── Channel pairs — all 35 defined HD channels ───────────────────────────────
@@ -231,14 +231,12 @@ function buildCompositeHDPayload(chartJsonA: unknown, chartJsonB: unknown): unkn
   }
 }
 
-// ─── Layer 2 — Identity stripper (same as all other routes) ──────────────────
+// ─── Self-review footer ───────────────────────────────────────────────────────
 
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(
-    /## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/,
-    ''
-  )
-}
+const SELF_REVIEW =
+  'As you write each sentence: if you use an em dash (—), replace it immediately with a ' +
+  'comma or restructure the sentence. If you use "is not" or "are not", rewrite as an ' +
+  'affirmative statement before continuing.'
 
 // ─── Layer 3 + User message builder ──────────────────────────────────────────
 
@@ -264,6 +262,7 @@ function buildCompositeUserMessage(
     `Do not reference mechanics or data that belong to other sections. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
+    SELF_REVIEW + ' ' +
     `Write up to ${wordCap} words. Do not exceed ${wordCap} words.`
   )
 }
@@ -356,10 +355,9 @@ export async function POST(request: NextRequest) {
   )
 
   // Fetch governing documents in parallel
-  const [systemDoc, coreDoc, hdDoc] = await Promise.all([
+  const [systemDoc, coreDoc] = await Promise.all([
     fetch(HD_DOC_URLS.system).then(r => r.text()),
     fetch(HD_DOC_URLS.core).then(r => r.text()),
-    fetch(HD_DOC_URLS.hd).then(r => r.text()),
   ])
 
   // Configure system doc placeholders
@@ -372,14 +370,11 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'Provided in the conversation turn.')
 
   // Layer 2 — HD composite system prompt:
-  //   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (identity stripped) + CLAUDE_HD.md
-  //   No CLAUDE_ASTRO.md loaded
+  //   CLAUDE_SYSTEM.md + CLAUDE_CORE_COMPOSITE.md (self-contained, no ASTRO doc)
   const compositeSystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
-    '\n\n---\n\n',
-    hdDoc,
+    coreDoc,
   ].join('')
 
   console.log(
@@ -423,10 +418,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const raw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(raw, anthropic, section.column)
 
           if (compositeId && text) {
             const { error: dbError } = await adminSupabase
@@ -473,10 +470,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const emRaw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(emRaw, anthropic, colKey)
 
           if (text) {
             emResults.set(ch.key, text)
@@ -535,10 +534,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const domRaw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(domRaw, anthropic, colKey)
 
           if (text) {
             dominantResults.set(ch.key, text)
@@ -591,10 +592,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const compRaw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(compRaw, anthropic, colKey)
 
           if (text) {
             compromiseResults.set(ch.key, text)
@@ -649,10 +652,12 @@ export async function POST(request: NextRequest) {
             }],
           })
 
-          const text = message.content
+          const friendRaw = message.content
             .filter((b): b is Anthropic.TextBlock => b.type === 'text')
             .map(b => b.text)
             .join('')
+
+          const text = await postProcess(friendRaw, anthropic, colKey)
 
           if (text) {
             friendshipResults.set(ch.key, text)

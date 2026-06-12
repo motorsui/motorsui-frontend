@@ -5,19 +5,18 @@ import { postProcess } from '@/lib/interpret/post-process'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
-// HD sections receive: CLAUDE_SYSTEM.md + CLAUDE_CORE.md (identity stripped) + CLAUDE_HD.md
+// HD sections receive: CLAUDE_SYSTEM.md + CLAUDE_CORE_HD.md (self-contained)
 // Astrology docs are NOT loaded. HD payload contains only hd + birth data.
 // Three contamination layers mirror the astrology route, reversed:
 //   Layer 1 — Payload: strip natal astrology from chart_json before sending
-//   Layer 2 — System prompt: CLAUDE_ASTRO.md not included; SYSTEM IDENTITY stripped from CORE
+//   Layer 2 — System prompt: CLAUDE_ASTRO.md not included; CLAUDE_CORE_HD.md loaded directly
 //   Layer 3 — User message: hard discipline declaration forbidding Jyotish content
 
 const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
 
 const HD_DOC_URLS = {
   system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE.md`,
-  hd:     `${DOC_BASE}/CLAUDE_HD.md`,
+  core:   `${DOC_BASE}/CLAUDE_CORE_HD.md`,
 }
 
 // ─── Fixed section definitions ────────────────────────────────────────────────
@@ -129,15 +128,6 @@ function buildHDPayload(chartJson: unknown): unknown {
   }
 }
 
-// ─── Layer 2 — Identity stripper (same as astrology route) ───────────────────
-
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(
-    /## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/,
-    ''
-  )
-}
-
 // ─── Channel extractor ────────────────────────────────────────────────────────
 
 function extractDefinedChannels(hdData: unknown): Array<{key: string; name: string}> {
@@ -235,10 +225,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch governing documents in parallel
-  const [systemDoc, coreDoc, hdDoc] = await Promise.all([
+  const [systemDoc, coreDoc] = await Promise.all([
     fetch(HD_DOC_URLS.system).then(r => r.text()),
     fetch(HD_DOC_URLS.core).then(r => r.text()),
-    fetch(HD_DOC_URLS.hd).then(r => r.text()),
   ])
 
   // Configure system doc placeholders
@@ -251,15 +240,11 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'N/A')
 
   // Layer 2 — HD system prompt:
-  //   CLAUDE_SYSTEM.md (session config)
-  //   + CLAUDE_CORE.md voice/tier rules with three-system identity block stripped
-  //   + CLAUDE_HD.md (full HD rules — no astrology doc loaded)
+  //   CLAUDE_SYSTEM.md (session config) + CLAUDE_CORE_HD.md (self-contained HD engine)
   const hdSystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
-    '\n\n---\n\n',
-    hdDoc,
+    coreDoc,
   ].join('')
 
   console.log(

@@ -6,17 +6,15 @@ import { postProcess } from '@/lib/interpret/post-process'
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
 // HD Parenting sections receive:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE.md (voice/tier rules only, identity stripped)
-//   + CLAUDE_HD_PARENTING.md
+//   CLAUDE_SYSTEM.md + CLAUDE_CORE_HD_PARENTING.md (self-contained)
 //
 // Natal astrology data is stripped from the payload (Layer 1).
 
 const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
 
 const HD_PARENTING_DOC_URLS = {
-  system:    `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:      `${DOC_BASE}/CLAUDE_CORE.md`,
-  parenting: `${DOC_BASE}/CLAUDE_HD_PARENTING.md`,
+  system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
+  core:   `${DOC_BASE}/CLAUDE_CORE_HD_PARENTING.md`,
 }
 
 // ─── Fixed section definitions ────────────────────────────────────────────────
@@ -169,12 +167,6 @@ function buildHDParentingPayload(chartJson: unknown): unknown {
   return { hd: json.hd, birth: json.birth }
 }
 
-// ─── Layer 2 — Identity stripper ─────────────────────────────────────────────
-
-function extractVoiceAndTierRules(coreDoc: string): string {
-  return coreDoc.replace(/## SYSTEM IDENTITY[\s\S]*?(?=## TIER ARCHITECTURE)/, '')
-}
-
 // ─── Channel extractor ────────────────────────────────────────────────────────
 
 function extractDefinedChannels(hdData: unknown): Array<{key: string; name: string}> {
@@ -239,10 +231,9 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const [systemDoc, coreDoc, hdParentingDoc] = await Promise.all([
+  const [systemDoc, coreDoc] = await Promise.all([
     fetch(HD_PARENTING_DOC_URLS.system).then(r => r.text()),
     fetch(HD_PARENTING_DOC_URLS.core).then(r => r.text()),
-    fetch(HD_PARENTING_DOC_URLS.parenting).then(r => r.text()),
   ])
 
   let systemDoc_configured = systemDoc
@@ -256,9 +247,7 @@ export async function POST(request: NextRequest) {
   const hdParentingSystemPrompt = [
     systemDoc_configured,
     '\n\n---\n\n',
-    extractVoiceAndTierRules(coreDoc),
-    '\n\n---\n\n',
-    hdParentingDoc,
+    coreDoc,
   ].join('')
 
   console.log(
