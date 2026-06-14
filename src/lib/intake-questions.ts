@@ -243,7 +243,7 @@ export const RELATIONAL_SECTIONS: IntakeSection[] = [
   },
 ]
 
-// ─── PARENTING FORM — 33 questions + Child birth data ────────────────────────
+// ─── PARENTING FORM — 68 questions + Child birth data ────────────────────────
 // Products 7 (Parenting Astro) and 8 (Parenting HD)
 
 export const PARENTING_CHILD_SECTION: IntakeSection = {
@@ -261,61 +261,127 @@ export const PARENTING_CHILD_SECTION: IntakeSection = {
   ],
 }
 
+export const PARENTING_INTRO = "The accuracy and depth of your child's report depends on the honesty and specificity of what you share here. Your child arrived with their own chart, their own timing, their own design. What the chart cannot show is how those conditions have actually landed in their lived experience, in your relationship with them, and in the daily reality of your family. The more precisely you describe your child as they actually are, not who you hope they will become, not the most composed version of the family, but the real child in front of you, the more this reading can identify where their design is expressing cleanly, where it is being blocked, where their potential has not yet met the right conditions, and where genuine tension exists between who they are built to be and how they are currently being met. This form is completed by the parent. Answer about your child, not yourself, except where the question directly asks about you. Honest, specific answers produce interpretations that can actually serve this child."
+
+export const PARENTING_PRODUCT_LINE = "Parenting Astrology · Parenting HD"
+
 export const PARENTING_SECTIONS: IntakeSection[] = [
   {
-    title: 'Parent Context',
-    description: 'Your own background helps frame how you are interpreting this child\'s chart.',
+    title: 'YOUR CHILD AT A GLANCE',
     questions: [
-      { id: 'p1',  text: 'What is your role?',                                        type: 'select', required: true,
-        options: ['Biological parent', 'Adoptive parent', 'Stepparent', 'Guardian', 'Grandparent', 'Other'] },
-      { id: 'p2',  text: 'Do you co-parent with another adult? Briefly describe the arrangement.', type: 'textarea' },
-      { id: 'p3',  text: 'Describe your own childhood in three sentences.',            type: 'textarea', required: true },
-      { id: 'p4',  text: 'What did your parents do well?',                             type: 'textarea' },
-      { id: 'p5',  text: 'What did your parents get wrong?',                           type: 'textarea' },
-      { id: 'p6',  text: 'What pattern from your upbringing are you most determined not to repeat?', type: 'textarea' },
-      { id: 'p7',  text: 'What pattern from your upbringing do you find yourself repeating despite your intention?', type: 'textarea' },
-      { id: 'p8',  text: 'What does this child bring out in you that most surprises you?', type: 'textarea' },
-      { id: 'p9',  text: 'What does this child need from you that you find hardest to give?', type: 'textarea' },
+      { id: 'p1',  text: 'Describe your child, not who you want them to be, but who they actually are right now.',               type: 'textarea', required: true },
+      { id: 'p2',  text: 'What is the first thing most people notice about your child when they meet them?',                      type: 'textarea', required: true },
+      { id: 'p3',  text: 'What do you understand about your child that you feel most people miss or misread?',                    type: 'textarea', required: true },
+      { id: 'p4',  text: 'What is your relationship to this child?',                                                              type: 'textarea', required: true },
+      { id: 'p5',  text: 'Who predominantly lives with this child?',                                                              type: 'textarea', required: true },
+      { id: 'p6',  text: 'What is your current living arrangement as it relates to this child?',                                  type: 'textarea', required: true },
     ],
   },
   {
-    title: "Your Child's Temperament",
+    title: 'PERSONALITY AND TEMPERAMENT',
     questions: [
-      { id: 'p10', text: 'Describe your child\'s dominant personality in three sentences.',    type: 'textarea', required: true },
-      { id: 'p11', text: 'What does your child do that most confuses or surprises you?',      type: 'textarea' },
-      { id: 'p12', text: 'What does your child do that most delights you?',                   type: 'textarea' },
-      { id: 'p13', text: 'What does your child do that most challenges you?',                 type: 'textarea' },
-      { id: 'p14', text: 'How does your child handle conflict with others?',                   type: 'textarea' },
-      { id: 'p15', text: 'How does your child handle transitions or change?',                  type: 'textarea' },
-      { id: 'p16', text: 'How does your child express strong emotion?',                        type: 'textarea' },
-      { id: 'p17', text: 'What does your child need most that you struggle to provide?',       type: 'textarea' },
+      { id: 'p7',  text: 'How would you describe your child\'s baseline temperament, their default way of moving through the world when nothing is activating them?', type: 'textarea', required: true },
+      { id: 'p8',  text: 'Is your child more introverted or extroverted, do they refuel through solitude or through connection?',  type: 'textarea', required: true },
+      { id: 'p9',  text: 'What seems most important to your child about who they are becoming?',                                   type: 'textarea', required: true },
+      { id: 'p10', text: 'How does your child handle change, transition, or the unexpected?',                                      type: 'textarea', required: true },
+      { id: 'p11', text: 'What does your child do when they are overwhelmed, do they shut down, escalate, withdraw, or seek contact?', type: 'textarea', required: true },
+      { id: 'p12', text: 'What brings your child the most genuine joy, not what they are good at, but what makes them come alive?', type: 'textarea', required: true },
+      { id: 'p13', text: 'What is your child currently drawn to?',                                                                type: 'textarea', required: true },
+      { id: 'p14', text: 'Does your child have siblings? If yes, describe their position in the sibling order and the quality of those relationships. If no, describe what that absence has been like for them.', type: 'textarea', required: true },
     ],
   },
   {
-    title: 'The Parent–Child Dynamic',
+    title: 'LEARNING AND INTELLIGENCE',
     questions: [
-      { id: 'p18', text: 'Describe a typical good day with your child.',             type: 'textarea' },
-      { id: 'p19', text: 'Describe a typical difficult day with your child.',         type: 'textarea' },
-      { id: 'p20', text: 'Where do you and your child most easily connect?',         type: 'textarea' },
-      { id: 'p21', text: 'Where do you and your child most consistently clash?',     type: 'textarea' },
-      { id: 'p22', text: 'What do you misread about your child regularly?',          type: 'textarea' },
-      { id: 'p23', text: 'What does your child need from you that you find hard to give?', type: 'textarea' },
-      { id: 'p24', text: 'What are you most afraid of getting wrong as this child\'s parent?', type: 'textarea' },
-      { id: 'p25', text: 'What do you most want your child to know about themselves?', type: 'textarea' },
+      { id: 'p15', text: 'How does your child learn best, through doing, through reading, through conversation, through observation, or through movement?', type: 'textarea', required: true },
+      { id: 'p16', text: 'Where does your child show natural intelligence or insight that surprises you?',                         type: 'textarea', required: true },
+      { id: 'p17', text: 'Where does your child struggle in learning environments and what do you think is underneath that struggle?', type: 'textarea', required: true },
+      { id: 'p18', text: 'How does your child respond to instruction, correction, or being told they are wrong?',                  type: 'textarea', required: true },
+      { id: 'p19', text: 'What helps your child return to balance most reliably after they become emotionally activated?',         type: 'textarea', required: true },
+      { id: 'p20', text: 'Does your child have a diagnosed learning difference, sensory sensitivity, or developmental pattern you want the reading to hold?', type: 'textarea' },
     ],
   },
   {
-    title: 'Developmental Context and What You Need',
-    description: 'These questions help the reading address what is alive for your child and your relationship right now.',
+    title: 'EMOTIONAL LIFE AND REGULATION',
     questions: [
-      { id: 'p26', text: 'Is your child currently in a notable developmental phase or transition?', type: 'textarea' },
-      { id: 'p27', text: 'Are there current behavioral or emotional challenges you are navigating?', type: 'textarea' },
-      { id: 'p28', text: 'Are there learning differences, health considerations, or external circumstances relevant to this reading?', type: 'textarea' },
-      { id: 'p29', text: 'How is your child\'s social life?',                        type: 'textarea' },
-      { id: 'p30', text: 'What is the primary question you want this reading to answer?', type: 'textarea', required: true },
-      { id: 'p31', text: 'What are you most afraid to discover about this dynamic?', type: 'textarea' },
-      { id: 'p32', text: 'What would a successful parenting reading change or clarify for you?', type: 'textarea' },
-      { id: 'p33', text: 'Is there anything else relevant to share before we begin?', type: 'textarea' },
+      { id: 'p21', text: 'In what predominant ways is your child emotionally expressive?',                                        type: 'textarea', required: true },
+      { id: 'p22', text: 'What emotions are easiest for your child to express and what emotions do they seem to hold back or suppress?', type: 'textarea', required: true },
+      { id: 'p23', text: 'How long does it typically take your child to recover after emotional activation, minutes, hours, or longer?', type: 'textarea', required: true },
+      { id: 'p24', text: 'What does your child need most from you when they are in distress, physical closeness, words, space, or distraction?', type: 'textarea', required: true },
+      { id: 'p25', text: 'What has been your relationship to managing or holding their emotional behaviors?',                       type: 'textarea', required: true },
+      { id: 'p26', text: 'Does your child carry anxiety, sadness, anger, or fear in a way that concerns you? Describe what that looks like in their body and behavior.', type: 'textarea' },
+      { id: 'p27', text: 'Does your child show any orientation toward mystery, meaning, or something larger than everyday life, a spiritual sensitivity, philosophical curiosity, or unusual depth for their age?', type: 'textarea', required: true },
+      { id: 'p28', text: 'What behaviors demonstrated by your child trigger you the most?',                                        type: 'textarea', required: true },
+      { id: 'p29', text: 'When your child resists you, what is your first reaction and your second reaction? Explain your psychological interpretation of each.', type: 'textarea', required: true },
+      { id: 'p30', text: 'How do you typically repair after conflict or rupture with your child, and how does your child usually respond?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'SOCIAL AND RELATIONAL PATTERNS',
+    questions: [
+      { id: 'p31', text: 'How does your child move in social environments, do they lead, observe, attach to one person, or float between groups?', type: 'textarea', required: true },
+      { id: 'p32', text: 'What is the quality of your child\'s closest friendships, deep and few, wide and surface, or somewhere between?', type: 'textarea', required: true },
+      { id: 'p33', text: 'How does your child handle conflict with peers, do they confront, avoid, appease, or withdraw?',         type: 'textarea', required: true },
+      { id: 'p34', text: 'Is your child more oriented toward adults or toward peers for their primary sense of belonging?',        type: 'textarea', required: true },
+      { id: 'p35', text: 'Does your child generally seek you for comfort? Describe why or why not from your perspective.',         type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'BODY AND PHYSICAL EXPRESSION',
+    questions: [
+      { id: 'p36', text: 'How does your child inhabit their body, are they physically confident, physically cautious, sensory-seeking, or sensory-avoidant?', type: 'textarea', required: true },
+      { id: 'p37', text: 'Does your child have any chronic physical patterns, sleep disruption, digestive sensitivity, hyperactivity, fatigue, or pain, that feel connected to how they are living emotionally?', type: 'textarea' },
+      { id: 'p38', text: 'How does your child use physical movement, is it regulatory, expressive, compulsive, or avoided?',       type: 'textarea', required: true },
+      { id: 'p39', text: 'What does your child currently demonstrate the most in terms of behavioral or emotional expression?',    type: 'textarea', required: true },
+      { id: 'p40', text: 'What situations feel nourishing to your child when they are with you?',                                  type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'THE PARENT-CHILD DYNAMIC',
+    questions: [
+      { id: 'p41', text: 'What is the easiest thing about parenting this specific child?',                                         type: 'textarea', required: true },
+      { id: 'p42', text: 'What is the most challenging thing about parenting this specific child, the place where you most lose your footing?', type: 'textarea', required: true },
+      { id: 'p43', text: 'What worries you most about your child\'s future?',                                                      type: 'textarea', required: true },
+      { id: 'p44', text: 'In what ways does this child activate something unresolved in you, a pattern, a wound, or a younger version of yourself?', type: 'textarea', required: true },
+      { id: 'p45', text: 'Is there anything you secretly hope your child becomes, achieves, or avoids because of your own life experience?', type: 'textarea', required: true },
+      { id: 'p46', text: 'What do you most want to give this child that you did not receive?',                                     type: 'textarea', required: true },
+      { id: 'p47', text: 'What do you know about this child\'s grandparents, one defining quality or central struggle from each line, and what from that generation do you feel living in this child?', type: 'textarea', required: true },
+      { id: 'p48', text: 'When do you feel closest to your child?',                                                                type: 'textarea', required: true },
+      { id: 'p49', text: 'When do you feel most distant from your child?',                                                        type: 'textarea', required: true },
+      { id: 'p50', text: 'If there is any behavioral conflict with the other parent, describe it.',                               type: 'textarea' },
+      { id: 'p51', text: 'Are you noticing repeated themes or cycles with your child, bigger than behavior?',                     type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'YOUR PARENTING SELF-AWARENESS',
+    questions: [
+      { id: 'p52', text: 'How would you describe your parenting style in day-to-day moments, not the ideal version, but the real one?', type: 'textarea', required: true },
+      { id: 'p53', text: 'What kind of parent do you believe you are at your core?',                                               type: 'textarea', required: true },
+      { id: 'p54', text: 'What do you feel most confident in within your parenting, and why?',                                    type: 'textarea', required: true },
+      { id: 'p55', text: 'What do you feel most unsure, overwhelmed, or activated by in your parenting?',                         type: 'textarea', required: true },
+      { id: 'p56', text: 'What part of your own design, nature, or needs do you understand intellectually but struggle to trust or live by consistently as a parent?', type: 'textarea', required: true },
+      { id: 'p57', text: 'Being fully aware that we all carry attachment patterns across different dynamics, what attachment style would you say you lean toward most in your parenting?', type: 'textarea', required: true },
+      { id: 'p58', text: 'What would you assume your child\'s attachment style is around you?',                                    type: 'textarea', required: true },
+      { id: 'p59', text: 'When decisions need to be made for your child around structure, limits, routines, or direction, what feels most challenging or unclear for you?', type: 'textarea', required: true },
+      { id: 'p60', text: 'Are there ways you worry you might be over-guiding, under-guiding, or unintentionally shaping who your child should be?', type: 'textarea', required: true },
+      { id: 'p61', text: 'When parenting feels hardest, does it feel more like an energy mismatch, a communication gap, or a values difference?', type: 'textarea', required: true },
+      { id: 'p62', text: 'Are you noticing repeated themes or cycles with your child that feel bigger than behavior?',             type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'WHAT YOU ARE ASKING FOR',
+    questions: [
+      { id: 'p63', text: 'What do you most want this reading to help you understand, see differently, or do better as the parent of this specific child?', type: 'textarea', required: true },
+      { id: 'p64', text: 'What answer are you afraid this reading might give you about your child or your parenting?',            type: 'textarea', required: true },
+      { id: 'p65', text: 'What do you most want clarity on?',                                                                     type: 'textarea', required: true },
+      { id: 'p66', text: 'What would make this reading feel deeply supportive and worthwhile?',                                    type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'SELF-KNOWLEDGE',
+    questions: [
+      { id: 'p67', text: 'As the adult, what is your Myers-Briggs type?',  type: 'textarea', required: true },
+      { id: 'p68', text: 'As the adult, what is your Enneagram type?',     type: 'textarea', required: true },
     ],
   },
 ]
@@ -357,3 +423,5 @@ export function getIntakeSubtitle(type: IntakeType): string {
 }
 
 export const RELATIONAL_QUESTION_LIST: IntakeQuestion[] = RELATIONAL_SECTIONS.flatMap(s => s.questions)
+
+export const PARENTING_QUESTION_LIST: IntakeQuestion[] = PARENTING_SECTIONS.flatMap(s => s.questions)

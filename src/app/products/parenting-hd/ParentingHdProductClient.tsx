@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Header from '@/components/layout/Header'
-import IntakeForm from '@/components/intake/IntakeForm'
+import ParentingIntakeForm from '@/components/intake/ParentingIntakeForm'
 
 const PARENTING_HD_COLUMNS = [
   'parenting_hd_type_strategy', 'parenting_hd_authority', 'parenting_hd_profile',
@@ -112,6 +112,7 @@ export default function ParentingHdProductClient({
   const [total, setTotal]                     = useState(0)
   const [intakeComplete, setIntakeComplete]   = useState(initialHasIntake)
   const [childChartReady, setChildChartReady] = useState(initialHasChildChart)
+  const [phase, setPhase]                     = useState<'form' | 'report'>(initialHasIntake ? 'report' : 'form')
   const chartIdRef = useRef<string>(String(initialChart.id ?? ''))
   chartIdRef.current = String(initialChart.id ?? '') // keep stable ref
 
@@ -172,19 +173,15 @@ export default function ParentingHdProductClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intakeComplete, childChartReady])
 
-  if (!intakeComplete) {
+  if (phase === 'form') {
     return (
-      <IntakeForm
-        formType="parenting"
+      <ParentingIntakeForm
         chartId={String(initialChart.id ?? '')}
-        onComplete={async (answers) => {
-          const res = await fetch('/api/save-intake', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ formType: 'parenting', chartId: String(initialChart.id), answers }),
-          })
-          if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as Record<string,string>).error ?? 'Failed to save intake') }
+        initialAnswers={(initialChart.intake_parenting as Record<string, string> | undefined) ?? undefined}
+        onComplete={async (childChartId) => {
           await fetchChildChart()
           setIntakeComplete(true)
+          setPhase('report')
         }}
       />
     )
