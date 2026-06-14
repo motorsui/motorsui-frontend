@@ -27,6 +27,7 @@ export interface GHLContactInput {
   birthState?:   string
   birthCountry?: string
   birthTime?:    string   // HH:MM
+  smsOptIn?:     boolean  // adds 'sms-opted-in' tag; trigger SMS consent workflows in GHL
   extraTags?:    string[] // merged with FUNNEL_TAG
 }
 
@@ -56,7 +57,11 @@ export async function upsertContact(input: GHLContactInput): Promise<string | nu
   }
 
   try {
-    const tags = [FUNNEL_TAG, ...(input.extraTags ?? [])]
+    const tags = [
+      FUNNEL_TAG,
+      ...(input.smsOptIn ? ['sms-opted-in'] : []),
+      ...(input.extraTags ?? []),
+    ]
     const body: Record<string, unknown> = {
       locationId,
       email:     input.email,

@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     current_city,
     current_state,
     current_country,
+    sms_consent,
   } = body
 
   if (!email || !password || !first_name || !last_name) {
@@ -67,15 +68,16 @@ export async function POST(request: NextRequest) {
       email,
       first_name,
       last_name,
-      cell:           cell           ?? null,
-      birth_city:     birth_city     ?? null,
-      birth_state:    birth_state    ?? null,
-      birth_country:  birth_country  ?? null,
-      birth_date:     birth_date     ?? null,
-      birth_time:     birth_time     ?? null,
-      current_city:   current_city   ?? null,
-      current_state:  current_state  ?? null,
+      cell:            cell            ?? null,
+      birth_city:      birth_city      ?? null,
+      birth_state:     birth_state     ?? null,
+      birth_country:   birth_country   ?? null,
+      birth_date:      birth_date      ?? null,
+      birth_time:      birth_time      ?? null,
+      current_city:    current_city    ?? null,
+      current_state:   current_state   ?? null,
       current_country: current_country ?? null,
+      sms_consent:     sms_consent     === true,
     })
 
   if (profileError) {
@@ -87,15 +89,16 @@ export async function POST(request: NextRequest) {
   // Non-fatal. Fires in parallel with chart calculation below.
   // Tags contact with 'motorsui-chart-funnel' to trigger E1/E2/E3 sequence.
   const ghlPromise = upsertContact({
-    firstName:     first_name,
-    lastName:      last_name,
+    firstName:    first_name,
+    lastName:     last_name,
     email,
-    phone:         cell         || undefined,
-    birthDate:     birth_date   || undefined,
-    birthCity:     birth_city   || undefined,
-    birthState:    birth_state  || undefined,
-    birthCountry:  birth_country || undefined,
-    birthTime:     birth_time   || undefined,
+    phone:        cell          || undefined,
+    birthDate:    birth_date    || undefined,
+    birthCity:    birth_city    || undefined,
+    birthState:   birth_state   || undefined,
+    birthCountry: birth_country || undefined,
+    birthTime:    birth_time    || undefined,
+    smsOptIn:     sms_consent   === true,
   })
 
   // ── 4. GEOCODE + CALCULATE CHART ─────────────────────────────────────────────
