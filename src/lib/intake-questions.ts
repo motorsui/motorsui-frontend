@@ -365,7 +365,6 @@ export const PARENTING_SECTIONS: IntakeSection[] = [
       { id: 'p59', text: 'When decisions need to be made for your child around structure, limits, routines, or direction, what feels most challenging or unclear for you?', type: 'textarea', required: true },
       { id: 'p60', text: 'Are there ways you worry you might be over-guiding, under-guiding, or unintentionally shaping who your child should be?', type: 'textarea', required: true },
       { id: 'p61', text: 'When parenting feels hardest, does it feel more like an energy mismatch, a communication gap, or a values difference?', type: 'textarea', required: true },
-      { id: 'p62', text: 'Are you noticing repeated themes or cycles with your child that feel bigger than behavior?',             type: 'textarea', required: true },
     ],
   },
   {

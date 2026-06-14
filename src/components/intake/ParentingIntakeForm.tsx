@@ -461,13 +461,13 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
     )
   }
 
-  // ── Question screens (steps 1-68) ─────────────────────────────────────────
+  // ── Question screens (steps 1-67) ─────────────────────────────────────────
 
   const qIndex = step - 1
   const q = PARENTING_QUESTION_LIST[qIndex]
   const sectionTitle = questionSectionMap[q.id] ?? ''
-  const isLast = step === 68
-  const pct = Math.round((step / 68) * 100)
+  const isLast = step === 67
+  const pct = Math.round((step / 67) * 100)
 
   return (
     <div style={S.page}>
@@ -475,7 +475,7 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
         <div style={S.progressFill(pct)} />
       </div>
       <div style={S.inner}>
-        <p style={S.stepLabel}>Question {step} of 68</p>
+        <p style={S.stepLabel}>Question {step} of 67</p>
         {sectionTitle && <p style={S.sectionTitle}>{sectionTitle}</p>}
         <p style={S.questionText}>{q.text}</p>
         <textarea
