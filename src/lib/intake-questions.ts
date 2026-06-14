@@ -1,7 +1,7 @@
 export interface IntakeQuestion {
   id:          string
   text:        string
-  type:        'textarea' | 'text' | 'select' | 'date' | 'time'
+  type:        'textarea' | 'text' | 'select' | 'date' | 'time' | 'number'
   placeholder?: string
   options?:    string[]
   required?:   boolean
@@ -12,6 +12,10 @@ export interface IntakeSection {
   description?: string
   questions:   IntakeQuestion[]
 }
+
+export const RELATIONAL_INTRO = "The accuracy and depth of your relationship report depends on the honesty and specificity of what each person shares here. Your charts show the structural conditions both of you were born into and the energetic dynamics that form between your designs. What the charts cannot show is how those dynamics have actually landed in your lived experience together. The more precisely you describe your real experience of this relationship, not the ideal version, not the version you present publicly, but the one you actually live inside, the more the system can identify where your connection is functioning cleanly, where friction is structural rather than personal, where potential exists that has not yet been realized, and where genuine tension lives between what your charts carry and what your relationship currently reflects. Both partners fill this form independently. Do not consult each other before answering."
+
+export const RELATIONAL_PRODUCT_LINE = "Astrology Synastry · HD Composite"
 
 // ─── SELF FORM — 59 questions — Products 1, 2, 3, 4 ─────────────────────────
 
@@ -121,7 +125,7 @@ export const SELF_SECTIONS: IntakeSection[] = [
   },
 ]
 
-// ─── RELATIONAL FORM — 27 questions + Person B birth data ────────────────────
+// ─── RELATIONAL FORM — 42 questions + Person B birth data ────────────────────
 // Products 5 (Synastry) and 6 (HD Composite)
 
 export const RELATIONAL_PERSON_B_SECTION: IntakeSection = {
@@ -141,47 +145,100 @@ export const RELATIONAL_PERSON_B_SECTION: IntakeSection = {
 
 export const RELATIONAL_SECTIONS: IntakeSection[] = [
   {
-    title: 'Relationship Context',
+    title: 'HOW YOU CAME TOGETHER',
     questions: [
-      { id: 'r1', text: 'What is the nature of this relationship?',                type: 'select', required: true,
-        options: ['Romantic partner', 'Spouse', 'Ex-partner', 'Close friend', 'Business partner', 'Other'] },
-      { id: 'r2', text: 'How long have you known each other?',                    type: 'text'      },
-      { id: 'r3', text: 'How long have you been in this relationship (if applicable)?', type: 'text'  },
-      { id: 'r4', text: 'How did you meet? Briefly describe.',                    type: 'textarea'  },
-      { id: 'r5', text: 'What drew you to this person initially?',                type: 'textarea'  },
-      { id: 'r6', text: 'What is the dominant quality of this relationship currently?', type: 'textarea' },
-      { id: 'r7', text: 'Describe a typical week in this relationship.',           type: 'textarea'  },
-      { id: 'r8', text: 'What is this relationship\'s greatest strength?',         type: 'textarea'  },
-      { id: 'r9', text: 'What is this relationship\'s most persistent tension?',   type: 'textarea'  },
+      { id: 'r1', text: 'How did you and your partner meet and what was your first impression of them?', type: 'textarea', required: true },
+      { id: 'r2', text: 'What drew you toward this specific person and what quality in them pulled you in most strongly?', type: 'textarea', required: true },
+      { id: 'r3', text: 'What did you sense about this relationship early on that you could not yet name?', type: 'textarea', required: true },
+      { id: 'r4', text: 'Why do you believe you and your partner found each other? Go beneath the surface answer. Consider what you were each carrying when you met, what you recognized in each other, and what that recognition may have been asking of you.', type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Communication, Conflict, and Attachment',
+    title: 'CURRENT RELATIONSHIP QUALITY',
     questions: [
-      { id: 'r10', text: 'How do you typically fight or disagree?',                type: 'textarea' },
-      { id: 'r11', text: 'How does repair happen after conflict?',                 type: 'textarea' },
-      { id: 'r12', text: 'Who tends to pursue, and who tends to withdraw?',        type: 'textarea' },
-      { id: 'r13', text: 'What topic or theme is consistently avoided between you?', type: 'textarea' },
-      { id: 'r14', text: 'What does this person say about you that is difficult to hear but may be true?', type: 'textarea' },
-      { id: 'r15', text: 'Describe the intimacy between you — physical, emotional, intellectual.', type: 'textarea' },
-      { id: 'r16', text: 'Do you feel seen by this person? In what way, or not?',  type: 'textarea' },
-      { id: 'r17', text: 'Do you feel you see this person accurately?',            type: 'textarea' },
-      { id: 'r18', text: 'What need of yours does this relationship meet most consistently?', type: 'textarea' },
-      { id: 'r19', text: 'What need of yours does this relationship fail to meet?', type: 'textarea' },
+      { id: 'r5', text: 'What brings you to this relationship reading at this point in time? Answer from your own perspective and lived experience.', type: 'textarea', required: true },
+      { id: 'r6', text: 'How would you describe the overall quality of the relationship right now, not the events, but the felt sense of it inside of you, whether objectively true or not, it matters?', type: 'textarea', required: true },
+      { id: 'r7', text: 'What is working well between you that you want to protect within this relationship?', type: 'textarea', required: true },
+      { id: 'r8', text: 'What is the central tension or recurring friction in the relationship?', type: 'textarea', required: true },
+      { id: 'r9', text: 'What patterns tend to repeat between you and your partner, even when your intentions are good?', type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Phases, Evolution, and What You Need to Know',
-    description: 'These final questions help the reading locate where this relationship stands in its arc.',
+    title: 'COMMUNICATION AND CONFLICT',
     questions: [
-      { id: 'r20', text: 'What was this relationship like in its early phase?',     type: 'textarea' },
-      { id: 'r21', text: 'What has changed most significantly?',                    type: 'textarea' },
-      { id: 'r22', text: 'Is there a specific event or period that shifted the dynamic?', type: 'textarea' },
-      { id: 'r23', text: 'What feels like unfinished business between you?',        type: 'textarea' },
-      { id: 'r24', text: 'What is the primary question you want this reading to answer?', type: 'textarea', required: true },
-      { id: 'r25', text: 'What outcome for this relationship feels most true to you?', type: 'textarea' },
-      { id: 'r26', text: 'What are you most afraid this reading might confirm?',    type: 'textarea' },
-      { id: 'r27', text: 'What is the thing you most cannot say to this person directly?', type: 'textarea' },
+      { id: 'r10', text: 'How do you typically handle disagreement and do you tend to pursue, withdraw, shut down, or escalate?', type: 'textarea', required: true },
+      { id: 'r11', text: 'What does your partner do in conflict that is most difficult for you to receive?', type: 'textarea', required: true },
+      { id: 'r12', text: 'What do you do in conflict that you suspect is most difficult for your partner?', type: 'textarea', required: true },
+      { id: 'r13', text: 'When conflict, tension, or emotional distance arises, describe your default way of coping or responding and what that pattern has cost you.', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'INTIMACY AND CONNECTION',
+    questions: [
+      { id: 'r14', text: 'How connected do you feel to your partner emotionally right now on a scale of 1 to 10, and what is driving that number?', type: 'number', required: true },
+      { id: 'r15', text: 'Where has intimacy, emotional, physical, or both, become strained or routine, and what do you think is underneath that?', type: 'textarea', required: true },
+      { id: 'r16', text: 'What does genuine closeness feel like for you and how often do you experience it in this relationship?', type: 'textarea', required: true },
+      { id: 'r17', text: 'When you feel most loved and secure in a relationship, what specifically is happening? And when you feel most unsafe or unseen, what tends to trigger that and how do you typically respond?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'INDIVIDUAL WITHIN THE RELATIONSHIP',
+    questions: [
+      { id: 'r18', text: 'In what ways have you changed since being with this person, for better and for worse?', type: 'textarea', required: true },
+      { id: 'r19', text: 'What parts of yourself do you suppress, minimize, or hide in this relationship and what do you believe would happen if you stopped?', type: 'textarea', required: true },
+      { id: 'r20', text: 'What part of yourself feels most unseen, misunderstood, or difficult to express in this relationship and how long has that been true?', type: 'textarea', required: true },
+      { id: 'r21', text: 'What do you need from a relationship that you have not been able to ask for directly, and what has stopped you from asking?', type: 'textarea', required: true },
+      { id: 'r22', text: 'What do you tend to override in yourself to keep the relationship functioning or to keep the peace, and what does that cost you over time?', type: 'textarea', required: true },
+      { id: 'r23', text: 'What do you believe, at your core, will happen if you stop performing, accommodating, or managing in this relationship?', type: 'textarea', required: true },
+      { id: 'r24', text: 'Describe a version of yourself you have never fully shown a partner and what has kept that part hidden.', type: 'textarea', required: true },
+      { id: 'r25', text: 'What part of your own design, nature, or needs do you understand intellectually but struggle to trust or live by consistently in relationship?', type: 'textarea', required: true },
+      { id: 'r26', text: 'What do you genuinely appreciate or respect about your partner that may not be spoken often enough?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'FAMILY PATTERNS IN THE RELATIONSHIP',
+    questions: [
+      { id: 'r27', text: 'In what ways does your partner remind you of one of your parents, positively or negatively, and how aware of that dynamic are you in real time?', type: 'textarea', required: true },
+      { id: 'r28', text: 'What relational pattern from your family of origin are you most aware of repeating in this relationship?', type: 'textarea', required: true },
+      { id: 'r29', text: 'What did love look like in your childhood home and how has that blueprint shown up in your adult relationships, wanted or not?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'THE HIDDEN SELF AND WHAT YOU CARRY',
+    questions: [
+      { id: 'r30', text: 'What is the story you tell yourself about why this relationship is hard, and how much of that story do you actually believe?', type: 'textarea', required: true },
+      { id: 'r31', text: 'What do you fear at your core will happen if this relationship cannot become what you need it to be?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'SHARED LIFE AND FUTURE',
+    questions: [
+      { id: 'r32', text: 'How do you and your partner manage money together and is there alignment, tension, or avoidance around financial decisions and material security?', type: 'textarea', required: true },
+      { id: 'r33', text: 'Describe where children fit into your shared vision and whether that question carries weight, conflict, or grief between you.', type: 'textarea', required: true },
+      { id: 'r34', text: 'How aligned are you in your professional ambitions and do your careers support each other or create friction in the relationship?', type: 'textarea', required: true },
+      { id: 'r35', text: 'Describe where you and your partner share or differ in spiritual framework, practice, or philosophical orientation and how that affects the relationship.', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'WHAT YOU WANT FOR THE RELATIONSHIP',
+    questions: [
+      { id: 'r36', text: 'What would this relationship need to look like for you to feel it is genuinely thriving?', type: 'textarea', required: true },
+      { id: 'r37', text: 'What is the one thing you most want your partner to understand about you that you have not been able to communicate effectively?', type: 'textarea', required: true },
+      { id: 'r38', text: 'What do you hope becomes clearer, more stable, or more honest for you through this process?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'SELF-KNOWLEDGE',
+    questions: [
+      { id: 'r39', text: 'What is your Myers-Briggs type and how accurately do you feel it describes you?', type: 'textarea', required: true },
+      { id: 'r40', text: 'What is your Enneagram type and what does understanding it have changed about how you see yourself in relationship?', type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'OPEN FIELD',
+    questions: [
+      { id: 'r41', text: 'Is there anything significant about your history, your body, your patterns, or your current circumstances that you want this reading to hold?', type: 'textarea' },
+      { id: 'r42', text: 'What do you most want this reading to clarify, confirm, or challenge about this relationship?', type: 'textarea', required: true },
     ],
   },
 ]
@@ -298,3 +355,5 @@ export function getIntakeSubtitle(type: IntakeType): string {
     return 'These answers weave your lived experience into the chart analysis. Take your time.'
   return 'Your answers help the reading speak directly to your child and your dynamic together.'
 }
+
+export const RELATIONAL_QUESTION_LIST: IntakeQuestion[] = RELATIONAL_SECTIONS.flatMap(s => s.questions)

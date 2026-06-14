@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Header from '@/components/layout/Header'
-import IntakeForm from '@/components/intake/IntakeForm'
+import RelationalIntakeForm from '@/components/intake/RelationalIntakeForm'
 
 const SYNASTRY_COLUMNS = [
   'synastry_ashtakuta_total', 'synastry_nadi', 'synastry_bhakoot', 'synastry_gana',
@@ -136,6 +136,8 @@ export default function SynastryProductClient({
   const [total, setTotal]           = useState(0)
   const [intakeComplete, setIntakeComplete]       = useState(initialHasIntake)
   const [partnerChartReady, setPartnerChartReady] = useState(initialHasPartnerChart)
+  const [phase, setPhase] = useState<'form' | 'report'>(initialHasIntake ? 'report' : 'form')
+  const [partnerLink, setPartnerLink] = useState('')
   const chartIdRef = useRef<string>(String(initialChart.id ?? ''))
 
   const refreshSynastry = useCallback(async (chartIdA: string, chartIdB: string) => {
@@ -213,19 +215,16 @@ export default function SynastryProductClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intakeComplete, partnerChartReady])
 
-  if (!intakeComplete) {
+  if (phase === 'form') {
     return (
-      <IntakeForm
-        formType="relational"
+      <RelationalIntakeForm
         chartId={String(initialChart.id ?? '')}
-        onComplete={async (answers) => {
-          const res = await fetch('/api/save-intake', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ formType: 'relational', chartId: String(initialChart.id), answers }),
-          })
-          if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as Record<string,string>).error ?? 'Failed to save intake') }
+        initialAnswers={(initialChart.intake_relational as Record<string, string> | undefined) ?? undefined}
+        onComplete={async (partnerChartId) => {
+          setPartnerLink(`${typeof window !== 'undefined' ? window.location.origin : ''}/intake/partner?id=${partnerChartId}`)
           await fetchPartnerChart()
           setIntakeComplete(true)
+          setPhase('report')
         }}
       />
     )
