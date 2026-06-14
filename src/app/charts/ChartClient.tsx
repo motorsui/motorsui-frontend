@@ -1,189 +1,282 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import Input from '@/components/ui/Input'
-import Button from '@/components/ui/Button'
-import ChartDisplay from '@/components/chart/ChartDisplay'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import ChartDisplay, { ChartMode } from '@/components/chart/ChartDisplay'
 import LoadingChart from '@/components/chart/LoadingChart'
 
-const schema = z.object({
-  birth_date:    z.string().min(1, 'Birth date is required'),
-  birth_time:    z.string().min(1, 'Birth time is required'),
-  birth_city:    z.string().min(1, 'Birth city is required'),
-  birth_state:   z.string().optional(),
-  birth_country: z.string().min(1, 'Birth country is required'),
-})
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type FormData = z.infer<typeof schema>
+type ChartRecord = { id?: string; chart_json?: unknown; [key: string]: unknown }
 
-interface Profile {
-  birth_date?: string | null
-  birth_time?: string | null
-  birth_city?: string | null
-  birth_state?: string | null
-  birth_country?: string | null
-  first_name?: string | null
-}
+type Stage = 'form' | 'calculating' | 'display'
 
-interface Chart {
-  id: string
-  chart_json: Record<string, unknown>
-  interpretation_t1?: string | null
-  interpretation_t2?: string | null
-  interpretation_t3?: string | null
+interface FormFields {
+  birth_date:    string
+  birth_time:    string
+  birth_city:    string
+  birth_state:   string
+  birth_country: string
 }
 
 interface ChartClientProps {
-  profile: Profile | null
-  chart: Chart | null
-  tier: number
+  profile: Record<string, unknown> | null
+  chart:   ChartRecord | null
+  tier:    number
 }
 
-type Step = 'idle' | 'calculating' | 'interpreting' | 'done'
-
-const loadingMessages: Record<Step, string> = {
-  idle:         '',
-  calculating:  'Calculating your sidereal chart...',
-  interpreting: 'Generating your interpretation...',
-  done:         '',
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : ''
 }
 
-export default function ChartClient({ profile, chart, tier }: ChartClientProps) {
-  const tierKey = `interpretation_t${tier}` as keyof Chart
-  const existingInterpretation = chart?.[tierKey] as string | null | undefined
+// ─── Birth Data Form ──────────────────────────────────────────────────────────
 
-  const [step, setStep] = useState<Step>('idle')
-  const [interpretation, setInterpretation] = useState<string | null>(
-    existingInterpretation ?? null
+function BirthDataForm({
+  fields,
+  onChange,
+  onSubmit,
+  error,
+  loading,
+}: {
+  fields:    FormFields
+  onChange:  (patch: Partial<FormFields>) => void
+  onSubmit:  (e: React.FormEvent) => void
+  error:     string | null
+  loading:   boolean
+}) {
+  const label: React.CSSProperties = {
+    display:       'block',
+    fontFamily:    'var(--font-raleway, sans-serif)',
+    fontSize:      '10px',
+    fontWeight:    600,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color:         'rgba(154,124,46,0.7)',
+    marginBottom:  '6px',
+  }
+
+  const input: React.CSSProperties = {
+    width:           '100%',
+    backgroundColor: '#1a1410',
+    border:          '1px solid rgba(154,124,46,0.3)',
+    borderRadius:    '3px',
+    padding:         '10px 12px',
+    color:           '#f4f1e8',
+    fontFamily:      'Georgia, serif',
+    fontSize:        '14px',
+    outline:         'none',
+    colorScheme:     'dark',
+  }
+
+  const field = (name: keyof FormFields, labelText: string, type = 'text') => (
+    <div>
+      <label style={label}>{labelText}</label>
+      <input
+        type={type}
+        value={fields[name]}
+        onChange={e => onChange({ [name]: e.target.value })}
+        style={input}
+        required={name !== 'birth_state'}
+      />
+    </div>
   )
-  const [error, setError] = useState<string | null>(null)
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      birth_date:    profile?.birth_date    ?? '',
-      birth_time:    profile?.birth_time    ?? '',
-      birth_city:    profile?.birth_city    ?? '',
-      birth_state:   profile?.birth_state   ?? '',
-      birth_country: profile?.birth_country ?? '',
-    },
+  return (
+    <div
+      style={{
+        minHeight:       '100vh',
+        backgroundColor: '#0e0c0b',
+        display:         'flex',
+        alignItems:      'center',
+        justifyContent:  'center',
+        padding:         '40px 20px',
+      }}
+    >
+      <div
+        style={{
+          width:        '100%',
+          maxWidth:     '480px',
+          border:       '1px solid rgba(154,124,46,0.3)',
+          borderRadius: '4px',
+          padding:      '40px',
+        }}
+      >
+        <p
+          style={{
+            fontFamily:    'var(--font-raleway, sans-serif)',
+            fontSize:      '10px',
+            fontWeight:    700,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color:         '#9a7c2e',
+            marginBottom:  '8px',
+          }}
+        >
+          MotorSui
+        </p>
+        <h1
+          style={{
+            fontFamily:   'Georgia, serif',
+            fontSize:     '24px',
+            color:        '#f4f1e8',
+            marginBottom: '32px',
+          }}
+        >
+          Generate Your Chart
+        </h1>
+
+        <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {field('birth_date', 'Birth Date', 'date')}
+            {field('birth_time', 'Birth Time', 'time')}
+          </div>
+
+          {field('birth_city', 'Birth City')}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {field('birth_state', 'Birth State / Province')}
+            {field('birth_country', 'Birth Country')}
+          </div>
+
+          {error && (
+            <p
+              style={{
+                fontFamily: 'Georgia, serif',
+                fontSize:   '13px',
+                color:      '#c45a5a',
+                fontStyle:  'italic',
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              backgroundColor: loading ? 'rgba(154,124,46,0.3)' : '#9a7c2e',
+              color:           '#0e0c0b',
+              border:          'none',
+              borderRadius:    '3px',
+              padding:         '13px 24px',
+              fontFamily:      'var(--font-raleway, sans-serif)',
+              fontSize:        '11px',
+              fontWeight:      700,
+              letterSpacing:   '0.14em',
+              textTransform:   'uppercase',
+              cursor:          loading ? 'not-allowed' : 'pointer',
+              marginTop:       '8px',
+            }}
+          >
+            {loading ? 'Calculating...' : 'Calculate Chart'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+//
+// Responsibility: collect birth data, calculate chart, store it, hand off to
+// product selection. Interpretation is NOT triggered here — it fires on first
+// visit to a purchased product page.
+
+export default function ChartClient({ profile, chart: initialChart, tier }: ChartClientProps) {
+  const router   = useRouter()
+  const supabase = createClient()
+
+  const [stage, setStage] = useState<Stage>(() =>
+    initialChart ? 'display' : 'form'
+  )
+
+  const [chart, setChart] = useState<ChartRecord | null>(initialChart)
+  const [mode, setMode]   = useState<ChartMode>('traditional')
+
+  const [form, setForm] = useState<FormFields>({
+    birth_date:    str(profile?.birth_date),
+    birth_time:    str(profile?.birth_time),
+    birth_city:    str(profile?.birth_city),
+    birth_state:   str(profile?.birth_state),
+    birth_country: str(profile?.birth_country),
   })
+  const [formError, setFormError] = useState<string | null>(null)
 
-  async function onSubmit(data: FormData) {
-    setError(null)
+  // ── Form submit → calculate chart → redirect to product selection ──
 
-    // Step 1: calculate chart
-    setStep('calculating')
-    const chartRes = await fetch('/api/chart', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+  async function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
 
-    if (!chartRes.ok) {
-      const err = await chartRes.json().catch(() => ({}))
-      setError(err.error ?? 'Chart calculation failed. Please check your birth details.')
-      setStep('idle')
+    if (!form.birth_date || !form.birth_time || !form.birth_city || !form.birth_country) {
+      setFormError('Birth date, time, city, and country are required.')
       return
     }
 
-    const { chart_json, chart_id } = await chartRes.json()
+    setStage('calculating')
 
-    // Step 2: generate interpretation
-    setStep('interpreting')
-    const interpretRes = await fetch('/api/interpret', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chart_json, tier, chart_id }),
-    })
+    try {
+      const res = await fetch('/api/chart', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(form),
+      })
 
-    if (!interpretRes.ok) {
-      const err = await interpretRes.json().catch(() => ({}))
-      setError(err.error ?? 'Interpretation failed. Please try again.')
-      setStep('idle')
-      return
+      const data = await res.json() as { chart_json?: unknown; chart_id?: string; error?: string }
+
+      if (!res.ok || !data.chart_json || !data.chart_id) {
+        setFormError(data.error ?? 'Chart calculation failed. Please try again.')
+        setStage('form')
+        return
+      }
+
+      // Fetch the newly created chart row so the display stage has full data
+      const { data: row } = await supabase
+        .from('charts')
+        .select('*')
+        .eq('id', data.chart_id)
+        .single()
+
+      if (row) setChart(row as ChartRecord)
+
+      // Redirect to product selection — interpretation fires on first product visit
+      router.push('/products')
+
+    } catch (err) {
+      console.error('[ChartClient] calc error:', err)
+      setFormError('Chart calculation failed. Please try again.')
+      setStage('form')
     }
-
-    const { interpretation: text } = await interpretRes.json()
-    setInterpretation(text)
-    setStep('done')
   }
 
-  // Loading states
-  if (step === 'calculating' || step === 'interpreting') {
-    return <LoadingChart message={loadingMessages[step]} />
+  // ── Render ──
+
+  if (stage === 'calculating') {
+    return <LoadingChart message="Calculating your chart..." />
   }
 
-  // Show interpretation if available
-  if (interpretation) {
+  if (stage === 'form') {
     return (
-      <main>
-        <ChartDisplay interpretation={interpretation} tier={tier} />
-      </main>
+      <BirthDataForm
+        fields={form}
+        onChange={patch => setForm(prev => ({ ...prev, ...patch }))}
+        onSubmit={handleFormSubmit}
+        error={formError}
+        loading={false}
+      />
     )
   }
 
-  // Form — no chart yet
+  // display — returning users who navigate to /charts directly
   return (
-    <main className="max-w-2xl mx-auto px-6 py-16">
-      <h1 className="font-[family-name:var(--font-playfair)] text-4xl text-[#1e1a18] mb-3">
-        Generate Your Chart
-      </h1>
-      <p className="font-[family-name:var(--font-cormorant)] text-lg text-[#1e1a18]/60 mb-10">
-        Enter your birth details. All calculations are sidereal Lahiri.
-      </p>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-        <div className="border border-[#c4a96a]/40 rounded p-6 flex flex-col gap-5">
-          <p className="font-[family-name:var(--font-raleway)] text-xs font-semibold text-[#9a7c2e] uppercase tracking-widest">
-            Birth Information
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Birth date"
-              type="date"
-              {...register('birth_date')}
-              error={errors.birth_date?.message}
-            />
-            <Input
-              label="Birth time"
-              type="time"
-              {...register('birth_time')}
-              error={errors.birth_time?.message}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Birth city"
-              {...register('birth_city')}
-              error={errors.birth_city?.message}
-            />
-            <Input
-              label="Birth state"
-              {...register('birth_state')}
-              error={errors.birth_state?.message}
-            />
-            <Input
-              label="Birth country"
-              {...register('birth_country')}
-              error={errors.birth_country?.message}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <p className="font-[family-name:var(--font-raleway)] text-sm text-[#6b2737] text-center">
-            {error}
-          </p>
-        )}
-
-        <Button type="submit" size="lg" loading={isSubmitting} className="w-full">
-          Generate My Chart
-        </Button>
-      </form>
-    </main>
+    <ChartDisplay
+      chart={chart as Record<string, unknown> | null}
+      chartJson={chart?.chart_json}
+      tier={tier}
+      mode={mode}
+      onModeChange={setMode}
+    />
   )
 }

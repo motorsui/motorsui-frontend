@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 // Returns the UTC offset in hours that was in effect at the given local birth time,
 // using the IANA timezone database via Intl — correctly handles historical DST.
@@ -100,27 +100,38 @@ export async function POST(request: NextRequest) {
     birth: { birth_date, birth_time, birth_city, birth_state, birth_country, latitude, longitude, timezone, utc_offset },
   }
 
+  const adminSupabase = createAdminClient()
+
+  // Ensure a profile row exists (guards against users who bypassed normal registration)
+  await adminSupabase
+    .from('profiles')
+    .upsert(
+      { id: user.id, email: user.email ?? '', first_name: '', last_name: '' },
+      { onConflict: 'id', ignoreDuplicates: true }
+    )
+
   // Upsert chart row
   let chartId: string | undefined
 
-  const { data: existing } = await supabase
+  const { data: existing } = await adminSupabase
     .from('charts')
     .select('id')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (existing) {
-    await supabase
+    await adminSupabase
       .from('charts')
       .update({ chart_json, updated_at: new Date().toISOString() })
       .eq('id', existing.id)
     chartId = existing.id
   } else {
-    const { data: inserted } = await supabase
+    const { data: inserted, error: insertError } = await adminSupabase
       .from('charts')
       .insert({ user_id: user.id, chart_json })
       .select('id')
       .single()
+    if (insertError) console.error('[chart] insert error:', insertError)
     chartId = inserted?.id
   }
 

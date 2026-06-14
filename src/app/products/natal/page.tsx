@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import Header from '@/components/layout/Header'
-import ChartClient from './ChartClient'
+import NatalProductClient from './NatalProductClient'
 
-export default async function ChartsPage() {
+export default async function NatalProductPage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -11,7 +10,7 @@ export default async function ChartsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('tier')
     .eq('id', user.id)
     .single()
 
@@ -23,12 +22,14 @@ export default async function ChartsPage() {
     .limit(1)
     .maybeSingle()
 
+  if (!chart) redirect('/charts')
+
   const tier = profile?.tier ?? 1
 
   return (
-    <div className="min-h-screen bg-[#f4f1e8]">
-      <Header />
-      <ChartClient profile={profile} chart={chart} tier={tier} />
-    </div>
+    <NatalProductClient
+      chart={chart as Record<string, unknown>}
+      tier={tier}
+    />
   )
 }
