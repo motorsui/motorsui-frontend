@@ -17,110 +17,100 @@ export const RELATIONAL_INTRO = "The accuracy and depth of your relationship rep
 
 export const RELATIONAL_PRODUCT_LINE = "Astrology Synastry · HD Composite"
 
-// ─── SELF FORM — 59 questions — Products 1, 2, 3, 4 ─────────────────────────
+// ─── SELF FORM — 38 questions — Products 1, 2, 3, 4 ─────────────────────────
 
 export const SELF_SECTIONS: IntakeSection[] = [
   {
-    title: 'Core Life Context',
+    title: 'WHO YOU ARE RIGHT NOW',
     questions: [
-      { id: 's1',  text: 'Full name',                                                        type: 'text',     required: true  },
-      { id: 's2',  text: 'Current age',                                                       type: 'text',     required: true  },
-      { id: 's3',  text: 'Current city and country',                                          type: 'text',     required: true  },
-      { id: 's4',  text: 'Relationship status',                                               type: 'select',   required: true,
-        options: ['Single', 'In a relationship', 'Married', 'Separated', 'Divorced', 'Widowed', 'Complicated'] },
-      { id: 's5',  text: 'Occupation or primary life role',                                   type: 'text'      },
-      { id: 's6',  text: 'Are you currently in a major life transition?',                     type: 'select',
-        options: ['Yes', 'No', 'Uncertain'] },
-      { id: 's7',  text: 'What has been the dominant theme of the last three years?',         type: 'textarea', placeholder: 'What has most consumed your attention, energy, or emotional life?' },
-      { id: 's8',  text: 'What is your primary intention for this reading?',                  type: 'textarea', placeholder: 'What do you most want to understand or clarify?' },
+      { id: 's1',  text: 'Describe yourself, not who you are working to become, but who you actually are at this moment.',                                                                        type: 'textarea', required: true },
+      { id: 's2',  text: 'What do you understand about yourself that you feel most people miss or misread?',                                                                                       type: 'textarea', required: true },
+      { id: 's3',  text: 'What brings you here right now? Please elaborate in as much detail as you feel called to share.',                                                                        type: 'textarea', required: true },
+      { id: 's4',  text: 'Is there a specific area of life you want focused on: love, relationships, family, money, career, purpose, karma, dharma, or other? If so, why?',                       type: 'textarea', required: true },
+      { id: 's5',  text: 'On a scale of 1 to 10, how aligned does your current life feel with who you believe you truly are? Explain why you chose that number.',                                  type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Work and Purpose',
+    title: 'PURPOSE AND VOCATION',
     questions: [
-      { id: 's9',  text: 'How do you currently make a living?',                               type: 'textarea'  },
-      { id: 's10', text: 'Does your work feel aligned with your sense of purpose?',           type: 'select',
-        options: ['Strongly yes', 'Mostly yes', 'Uncertain', 'Mostly no', 'Strongly no'] },
-      { id: 's11', text: 'What type of work or creative expression feels most natural to you?', type: 'textarea', placeholder: 'Not necessarily what you do for income — what pulls you.' },
-      { id: 's12', text: 'Describe the area of work or contribution you keep returning to, even if it is not your job.', type: 'textarea' },
-      { id: 's13', text: 'How has your professional drive shifted from your twenties to now?',  type: 'textarea' },
-      { id: 's14', text: 'What feels unresolved or uncompleted in your professional life?',    type: 'textarea' },
+      { id: 's6',  text: 'Do you have a sense of what you are here to contribute? If yes, describe it. If no, describe what that uncertainty feels like.',                                         type: 'textarea', required: true },
+      { id: 's7',  text: 'Is there a deep passion, calling, or desire you feel pulled toward but have not fully clarified or embodied yet? This may also be described as dharma.',                 type: 'textarea', required: true },
+      { id: 's8',  text: 'What place in your life are you most proud of, and how did you arrive there before your mind justified it?',                                                             type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Relationships and Attachment',
+    title: 'OBSTACLES AND RECURRING PATTERNS',
     questions: [
-      { id: 's15', text: 'Describe your current primary relationship, or the absence of one.', type: 'textarea' },
-      { id: 's16', text: 'What patterns tend to repeat in your close relationships?',           type: 'textarea', placeholder: 'Patterns you notice across multiple relationships, not just one.' },
-      { id: 's17', text: 'How do you typically respond when someone you love pulls away?',      type: 'textarea' },
-      { id: 's18', text: 'How do you typically respond when someone gets too close?',           type: 'textarea' },
-      { id: 's19', text: 'What does "home" feel like in your body — describe the physical sensation.', type: 'textarea' },
-      { id: 's20', text: 'Describe the quality of your relationship with your mother.',         type: 'textarea' },
-      { id: 's21', text: 'Describe the quality of your relationship with your father.',         type: 'textarea' },
-      { id: 's22', text: 'Do you have children? If so, describe the dominant dynamic.',         type: 'textarea' },
-      { id: 's23', text: 'What does intimacy feel like in your body — the approach and the aftermath?', type: 'textarea' },
-      { id: 's24', text: 'What has been your most formative relational wound?',                  type: 'textarea' },
+      { id: 's9',  text: 'What do you feel are the biggest obstacles currently preventing you from living the life you want?',                                                                      type: 'textarea', required: true },
+      { id: 's10', text: 'What karma do you believe you carry? Another way to frame this: what challenge, pattern, or difficulty keeps repeating in your life?',                                   type: 'textarea', required: true },
+      { id: 's11', text: 'Where in your life do you feel the most friction between who you know yourself to be inside, and how you are currently living externally?',                              type: 'textarea', required: true },
+      { id: 's12', text: 'What is the recurring obstacle in your life, the pattern that keeps returning regardless of how much you change around it?',                                             type: 'textarea', required: true },
+      { id: 's13', text: 'What is the version of yourself you most fear becoming?',                                                                                                                type: 'textarea', required: true },
     ],
   },
   {
-    title: 'The Body and Health',
+    title: 'VALUES AND WHAT MATTERS',
     questions: [
-      { id: 's25', text: 'Describe your overall physical health.',                             type: 'textarea' },
-      { id: 's26', text: 'Where in your body do you carry stress most consistently?',          type: 'textarea' },
-      { id: 's27', text: 'Do you have chronic physical symptoms that recur under pressure? Describe them.', type: 'textarea' },
-      { id: 's28', text: 'What physical practice or movement feels most natural to you?',      type: 'textarea' },
-      { id: 's29', text: 'How does your energy level fluctuate across the day or week?',       type: 'textarea' },
-      { id: 's30', text: 'Have you experienced significant illness, injury, or surgery? Briefly describe.', type: 'textarea' },
+      { id: 's14', text: 'What do you value most in how you live, what you actually organize your life around?',                                                                                   type: 'textarea', required: true },
+      { id: 's15', text: 'What would you be unwilling to compromise regardless of the cost?',                                                                                                      type: 'textarea', required: true },
+      { id: 's16', text: 'What do you feel your positive karma is within this lifetime? What have you grown to love?',                                                                             type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Mind and Shadow',
+    title: 'IDENTITY AND DESIGN',
     questions: [
-      { id: 's31', text: 'What is your most persistent self-critical thought?',                type: 'textarea' },
-      { id: 's32', text: 'What behavior do you engage in that you wish you did not?',          type: 'textarea' },
-      { id: 's33', text: 'What emotional response in yourself most surprises or troubles you?', type: 'textarea' },
-      { id: 's34', text: 'Describe a situation where you acted against your own values.',       type: 'textarea' },
-      { id: 's35', text: 'What area of life do you most avoid thinking about?',                type: 'textarea' },
-      { id: 's36', text: 'What do people consistently misread about you?',                     type: 'textarea' },
-      { id: 's37', text: 'What quality in others most irritates you?',                         type: 'textarea', placeholder: 'This often reflects something unacknowledged in ourselves.' },
-      { id: 's38', text: 'What do you want most that you struggle to let yourself have?',       type: 'textarea' },
+      { id: 's17', text: 'What parts of yourself do you tend to override, suppress, or abandon in order to keep things functioning or to keep others comfortable?',                                type: 'textarea', required: true },
+      { id: 's18', text: 'How have you learned to embody your Human Design type so far? What has worked, and where do you still feel confusion, resistance, or inconsistency?',                    type: 'textarea', required: true },
+      { id: 's19', text: 'How do you currently make significant decisions? Do you trust that process, and if not, where does it tend to break down?',                                              type: 'textarea', required: true },
+      { id: 's20', text: 'When you feel overwhelmed, dysregulated, or off track, what is your default coping strategy?',                                                                           type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Spiritual and Inner Life',
+    title: 'RELATIONSHIP AND INTIMACY',
     questions: [
-      { id: 's39', text: 'Do you have a spiritual or contemplative practice? Describe it.',    type: 'textarea' },
-      { id: 's40', text: 'What does "meaning" or "purpose" feel like when you have it — physically?', type: 'textarea' },
-      { id: 's41', text: 'Have you had experiences of deep clarity, synchronicity, or knowing that bypassed logic? Describe one.', type: 'textarea' },
-      { id: 's42', text: 'What philosophical, spiritual, or psychological system has shaped you most?', type: 'textarea' },
-      { id: 's43', text: 'Where do you feel most alive?',                                      type: 'textarea' },
-      { id: 's44', text: 'What feels like your truest contribution to the world?',             type: 'textarea' },
+      { id: 's21', text: 'Describe the most significant relational dynamic in your life right now, romantic or otherwise. What is working, what is not, and what pattern do you notice yourself repeating?', type: 'textarea', required: true },
+      { id: 's22', text: 'What relational pattern do you find yourself repeating that you most want to understand or change? This is about you, not the type of person you attract.',              type: 'textarea', required: true },
+      { id: 's23', text: 'How comfortable are you with genuine intimacy, being fully known by another person, what happens when full 100 percent is on the table?',                                type: 'textarea', required: true },
     ],
   },
   {
-    title: 'Timing and Life Phase',
+    title: 'BODY AND NERVOUS SYSTEM',
     questions: [
-      { id: 's45', text: 'How old are you right now, and does this age feel significant?',     type: 'textarea' },
-      { id: 's46', text: 'What ended in the last two years?',                                  type: 'textarea' },
-      { id: 's47', text: 'What began in the last two years?',                                  type: 'textarea' },
-      { id: 's48', text: 'What are you building right now?',                                   type: 'textarea' },
-      { id: 's49', text: 'What feels like the central question of this chapter of your life?', type: 'textarea' },
+      { id: 's24', text: 'How would you describe your relationship with your physical body and your energy? Do you trust it, override it, or feel disconnected from it?',                          type: 'textarea', required: true },
+      { id: 's25', text: 'Where do you most commonly feel stress, tension, or discomfort in your body?',                                                                                          type: 'textarea', required: true },
+      { id: 's26', text: 'Do you have any chronic physical patterns, sleep, digestion, pain, fatigue, that feel connected to how you are living?',                                                 type: 'textarea', required: true },
     ],
   },
   {
-    title: 'For This Reading',
-    description: 'These questions help focus the interpretation on what matters most to you right now.',
+    title: 'SPIRITUALITY AND DEPTH',
     questions: [
-      { id: 's50', text: 'What do you most want this reading to clarify?',                     type: 'textarea', required: true },
-      { id: 's51', text: 'Is there a decision you are currently facing? Describe it.',          type: 'textarea' },
-      { id: 's52', text: 'What are you most afraid this reading might confirm?',               type: 'textarea' },
-      { id: 's53', text: 'What are you most hoping this reading will show?',                   type: 'textarea' },
-      { id: 's54', text: 'Is there a recurring life theme you want specifically addressed?',    type: 'textarea' },
-      { id: 's55', text: 'Is there anything about your early life that feels formative and unresolved?', type: 'textarea' },
-      { id: 's56', text: 'Is there a relationship you want this reading to speak to directly?', type: 'textarea' },
-      { id: 's57', text: 'Is there a health, work, or financial matter you want addressed?',   type: 'textarea' },
-      { id: 's58', text: 'What would a successful reading feel like?',                         type: 'textarea' },
-      { id: 's59', text: 'Is there anything else you want to share before we begin?',          type: 'textarea' },
+      { id: 's27', text: 'What spiritual, philosophical, or self-development frameworks have shaped how you understand yourself? What has landed, and what has fallen short?',                     type: 'textarea', required: true },
+      { id: 's28', text: 'How would you describe your relationship to something larger than yourself, a practice, a philosophy, a knowing, or an absence of one?',                                 type: 'textarea', required: true },
+      { id: 's29', text: 'What spiritual or philosophical question most occupies you right now?',                                                                                                  type: 'textarea', required: true },
+      { id: 's30', text: 'What are two or three experiences in your life that most fundamentally changed who you were becoming?',                                                                   type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'ENDINGS AND TRANSFORMATION',
+    questions: [
+      { id: 's31', text: 'What is currently ending or dying in your life, a chapter, a relationship, an identity, a belief?',                                                                      type: 'textarea', required: true },
+      { id: 's32', text: 'What have you lost that you have not yet fully grieved?',                                                                                                                type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'WHAT YOU ARE REACHING TOWARD',
+    questions: [
+      { id: 's33', text: 'What does a life that feels genuinely yours look like? Describe it concretely.',                                                                                         type: 'textarea', required: true },
+      { id: 's34', text: 'What would have to change internally for that life to become possible?',                                                                                                 type: 'textarea', required: true },
+    ],
+  },
+  {
+    title: 'OPEN FIELD',
+    questions: [
+      { id: 's35', text: 'What do you hope to receive or experience from this reading? Is there anything important you feel has not been asked?',                                                   type: 'textarea', required: true },
+      { id: 's36', text: 'What is your attachment style and how aware are you of it, how does this repeat in your relationships?',                                                                  type: 'textarea', required: true },
+      { id: 's37', text: 'What is your Myers-Briggs type?',                                                                                                                                        type: 'textarea', required: true },
+      { id: 's38', text: 'What is your Enneagram type?',                                                                                                                                           type: 'textarea', required: true },
     ],
   },
 ]
@@ -421,6 +411,6 @@ export function getIntakeSubtitle(type: IntakeType): string {
   return 'Your answers help the reading speak directly to your child and your dynamic together.'
 }
 
+export const SELF_QUESTION_LIST: IntakeQuestion[]      = SELF_SECTIONS.flatMap(s => s.questions)
 export const RELATIONAL_QUESTION_LIST: IntakeQuestion[] = RELATIONAL_SECTIONS.flatMap(s => s.questions)
-
-export const PARENTING_QUESTION_LIST: IntakeQuestion[] = PARENTING_SECTIONS.flatMap(s => s.questions)
+export const PARENTING_QUESTION_LIST: IntakeQuestion[]  = PARENTING_SECTIONS.flatMap(s => s.questions)
