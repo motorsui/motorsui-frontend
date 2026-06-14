@@ -18,6 +18,7 @@ export function getStripe(): Stripe {
 // Keys with empty env vars are excluded at runtime.
 export function buildPriceProductMap(): Record<string, string> {
   const entries: Array<[string, string]> = [
+    [process.env.STRIPE_PRICE_ASTRO            ?? '', 'natal_report'],
     [process.env.STRIPE_PRICE_HD               ?? '', 'hd_report'],
     [process.env.STRIPE_PRICE_DCHARTS          ?? '', 'divcharts_report'],
     [process.env.STRIPE_PRICE_COMBINED         ?? '', 'combined_report'],

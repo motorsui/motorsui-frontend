@@ -18,9 +18,9 @@ const PRODUCTS: Product[] = [
     key:         'natal_report',
     name:        'Natal Astrology Report',
     description: 'Sidereal Lahiri natal chart with full planetary placements, nakshatras, dignities, Vimshottari Dasha timeline, and Purusharthas.',
-    free:        true,
+    free:        false,
     href:        '/products/natal',
-    priceId:     '',
+    priceId:     process.env.STRIPE_PRICE_ASTRO ?? '',
   },
   {
     key:         'hd_report',
