@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { upsertContact } from '@/lib/ghl'
 
 // Mirrors chart/route.ts — resolves historical UTC offset from IANA timezone and birth datetime.
 function getUtcOffsetHours(
@@ -82,7 +83,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Profile creation failed.' }, { status: 500 })
   }
 
-  // ── 3. GEOCODE + CALCULATE CHART ─────────────────────────────────────────────
+  // ── 3. GHL CONTACT UPSERT ────────────────────────────────────────────────────
+  // Non-fatal. Fires in parallel with chart calculation below.
+  // Tags contact with 'motorsui-chart-funnel' to trigger E1/E2/E3 sequence.
+  const ghlPromise = upsertContact({
+    firstName:     first_name,
+    lastName:      last_name,
+    email,
+    phone:         cell         || undefined,
+    birthDate:     birth_date   || undefined,
+    birthCity:     birth_city   || undefined,
+    birthState:    birth_state  || undefined,
+    birthCountry:  birth_country || undefined,
+    birthTime:     birth_time   || undefined,
+  })
+
+  // ── 4. GEOCODE + CALCULATE CHART ─────────────────────────────────────────────
   // Non-fatal — if chart calculation fails the account is still created and the
   // user can recalculate from the chart page.
   let chart_id: string | undefined
@@ -172,6 +188,9 @@ export async function POST(request: NextRequest) {
       console.error('[register] chart calculation skipped:', err)
     }
   }
+
+  // Await GHL (non-fatal — already logged internally)
+  await ghlPromise.catch(() => {})
 
   return NextResponse.json({ success: true, chart_id })
 }

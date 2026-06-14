@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { upsertContact } from '@/lib/ghl'
 
 // Returns the UTC offset in hours that was in effect at the given local birth time,
 // using the IANA timezone database via Intl — correctly handles historical DST.
@@ -134,6 +135,27 @@ export async function POST(request: NextRequest) {
     if (insertError) console.error('[chart] insert error:', insertError)
     chartId = inserted?.id
   }
+
+  // Fetch profile for name data to include in GHL contact
+  const { data: profile } = await adminSupabase
+    .from('profiles')
+    .select('first_name, last_name, cell, birth_time')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  // Upsert GHL contact — ensures users who skip birth data at registration
+  // are still captured in the funnel when they enter it here.
+  upsertContact({
+    firstName:    String(profile?.first_name || ''),
+    lastName:     String(profile?.last_name  || ''),
+    email:        user.email ?? '',
+    phone:        profile?.cell     ? String(profile.cell)      : undefined,
+    birthDate:    birth_date        || undefined,
+    birthTime:    profile?.birth_time ? String(profile.birth_time) : birth_time || undefined,
+    birthCity:    birth_city        || undefined,
+    birthState:   birth_state       || undefined,
+    birthCountry: birth_country     || undefined,
+  }).catch(() => {})
 
   return NextResponse.json({ chart_json, chart_id: chartId })
 }
