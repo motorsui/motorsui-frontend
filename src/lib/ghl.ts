@@ -18,8 +18,8 @@ const GHL_VERSION = '2021-07-28'
 const FUNNEL_TAG = 'motorsui-chart-funnel'
 
 export interface GHLContactInput {
-  firstName:     string
-  lastName:      string
+  firstName?:    string
+  lastName?:     string
   email:         string
   phone?:        string
   birthDate?:    string   // YYYY-MM-DD
@@ -27,6 +27,7 @@ export interface GHLContactInput {
   birthState?:   string
   birthCountry?: string
   birthTime?:    string   // HH:MM
+  extraTags?:    string[] // merged with FUNNEL_TAG
 }
 
 function headers(): Record<string, string> {
@@ -55,13 +56,15 @@ export async function upsertContact(input: GHLContactInput): Promise<string | nu
   }
 
   try {
+    const tags = [FUNNEL_TAG, ...(input.extraTags ?? [])]
     const body: Record<string, unknown> = {
       locationId,
-      firstName: input.firstName || '',
-      lastName:  input.lastName  || '',
       email:     input.email,
-      tags:      [FUNNEL_TAG],
+      tags,
     }
+
+    if (input.firstName) body.firstName = input.firstName
+    if (input.lastName)  body.lastName  = input.lastName
 
     if (input.phone)        body.phone       = input.phone
     if (input.birthDate)    body.dateOfBirth = input.birthDate
