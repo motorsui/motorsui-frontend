@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { postProcess } from '@/lib/interpret/post-process'
+import { extractBirthPayload, fetchDomainConclusions, buildDomainContextBlock } from '@/lib/interpret/domain-conclusions'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
@@ -237,10 +238,14 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const [systemDoc, coreDoc, parentingDoc] = await Promise.all([
+  const birthPayload = extractBirthPayload(chart_json)
+  const [systemDoc, coreDoc, parentingDoc, domainConclusions] = await Promise.all([
     fetch(PARENTING_DOC_URLS.system).then(r => r.text()),
     fetch(PARENTING_DOC_URLS.core).then(r => r.text()),
     fetch(PARENTING_DOC_URLS.parenting).then(r => r.text()),
+    birthPayload
+      ? fetchDomainConclusions(birthPayload, 'parenting', intake_json ?? null)
+      : Promise.resolve(null),
   ])
 
   let systemDoc_configured = systemDoc
@@ -251,6 +256,10 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace(
     /\[INTAKE_JSON[^\]]*\]/g,
     intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
+  )
+  systemDoc_configured = systemDoc_configured.replace(
+    /\[DOMAIN_CONCLUSIONS_JSON[^\]]*\]/g,
+    buildDomainContextBlock(domainConclusions)
   )
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'N/A')
 

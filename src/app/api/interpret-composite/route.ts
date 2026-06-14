@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { postProcess } from '@/lib/interpret/post-process'
+import { extractBirthPayload, fetchDomainConclusions, buildDomainContextBlock } from '@/lib/interpret/domain-conclusions'
 
 // ─── Governing documents ──────────────────────────────────────────────────────
 //
@@ -355,10 +356,14 @@ export async function POST(request: NextRequest) {
     `friend:${channels.friendship.length} | ${chart_id_a}×${chart_id_b}`
   )
 
-  // Fetch governing documents in parallel
-  const [systemDoc, coreDoc] = await Promise.all([
+  // Fetch governing documents + domain conclusions in parallel
+  const birthPayload = extractBirthPayload(chartA.chart_json)
+  const [systemDoc, coreDoc, domainConclusions] = await Promise.all([
     fetch(HD_DOC_URLS.system).then(r => r.text()),
     fetch(HD_DOC_URLS.core).then(r => r.text()),
+    birthPayload
+      ? fetchDomainConclusions(birthPayload, 'relational', intake_json ?? null)
+      : Promise.resolve(null),
   ])
 
   // Configure system doc placeholders
@@ -370,6 +375,10 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace(
     /\[INTAKE_JSON[^\]]*\]/g,
     intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
+  )
+  systemDoc_configured = systemDoc_configured.replace(
+    /\[DOMAIN_CONCLUSIONS_JSON[^\]]*\]/g,
+    buildDomainContextBlock(domainConclusions)
   )
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'Provided in the conversation turn.')
 
