@@ -215,11 +215,12 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { chart_json, tier, chart_id, skip_columns } = body as {
+  const { chart_json, tier, chart_id, skip_columns, intake_json } = body as {
     chart_json:    unknown
     tier:          number
     chart_id:      string
     skip_columns?: string[]
+    intake_json?:  Record<string, string> | null
   }
 
   const skipSet = new Set(Array.isArray(skip_columns) ? skip_columns : [])
@@ -241,7 +242,10 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace('[USER_NAME]', user.email ?? 'User')
   systemDoc_configured = systemDoc_configured.replace('[TRUE / FALSE]', 'FALSE')
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON[^\]]*\]/g, 'Provided in the conversation turn.')
-  systemDoc_configured = systemDoc_configured.replace(/\[INTAKE_JSON[^\]]*\]/g, 'N/A')
+  systemDoc_configured = systemDoc_configured.replace(
+    /\[INTAKE_JSON[^\]]*\]/g,
+    intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
+  )
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'N/A')
 
   const hdParentingSystemPrompt = [

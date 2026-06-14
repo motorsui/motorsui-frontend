@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import NatalProductClient from './NatalProductClient'
+import HdProductClient from './HdProductClient'
 
-export default async function NatalProductPage() {
+export default async function HdProductPage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -10,9 +10,11 @@ export default async function NatalProductPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier')
+    .select('tier, purchased_products')
     .eq('id', user.id)
     .single()
+
+  if (!profile?.purchased_products?.includes('hd_report')) redirect('/products')
 
   const { data: chart } = await supabase
     .from('charts')
@@ -25,15 +27,8 @@ export default async function NatalProductPage() {
   if (!chart) redirect('/charts')
 
   const tier = profile?.tier ?? 1
-
   const intake = chart.intake_self as Record<string, string> | null
   const hasIntake = !!intake && Object.keys(intake).length > 0
 
-  return (
-    <NatalProductClient
-      chart={chart as Record<string, unknown>}
-      tier={tier}
-      hasIntake={hasIntake}
-    />
-  )
+  return <HdProductClient chart={chart as Record<string, unknown>} tier={tier} hasIntake={hasIntake} />
 }

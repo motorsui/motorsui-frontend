@@ -281,11 +281,12 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { chart_id_a, chart_id_b, tier, skip_columns } = body as {
+  const { chart_id_a, chart_id_b, tier, skip_columns, intake_json } = body as {
     chart_id_a:    string
     chart_id_b:    string
     tier:          number
     skip_columns?: string[]
+    intake_json?:  Record<string, string> | null
   }
 
   if (!chart_id_a || !chart_id_b) {
@@ -366,7 +367,10 @@ export async function POST(request: NextRequest) {
   systemDoc_configured = systemDoc_configured.replace('[USER_NAME]', user.email ?? 'User')
   systemDoc_configured = systemDoc_configured.replace('[TRUE / FALSE]', 'FALSE')
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON[^\]]*\]/g, 'Provided in the conversation turn.')
-  systemDoc_configured = systemDoc_configured.replace(/\[INTAKE_JSON[^\]]*\]/g, 'N/A')
+  systemDoc_configured = systemDoc_configured.replace(
+    /\[INTAKE_JSON[^\]]*\]/g,
+    intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
+  )
   systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'Provided in the conversation turn.')
 
   // Layer 2 — HD composite system prompt:
