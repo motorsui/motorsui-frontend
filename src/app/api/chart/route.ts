@@ -69,8 +69,9 @@ export async function POST(request: NextRequest) {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.motorsui.com'
 
-  // Call HD and natal endpoints in parallel
-  const [hdRes, natalRes] = await Promise.all([
+  // Call HD, natal, and evidence endpoints in parallel.
+  // Evidence is non-fatal — chart creation succeeds even if evidence fails.
+  const [hdRes, natalRes, evidenceRes] = await Promise.all([
     fetch(`${apiUrl}/hd`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,6 +82,11 @@ export async function POST(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(birthPayload),
     }),
+    fetch(`${apiUrl}/natal/evidence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ birth: birthPayload }),
+    }).catch(() => null),
   ])
 
   if (!hdRes.ok || !natalRes.ok) {
@@ -94,6 +100,9 @@ export async function POST(request: NextRequest) {
   }
 
   const [hdData, natalData] = await Promise.all([hdRes.json(), natalRes.json()])
+  const evidence_objects = (evidenceRes && evidenceRes.ok)
+    ? await evidenceRes.json().catch(() => null)
+    : null
 
   const chart_json = {
     hd:    hdData,
@@ -123,13 +132,13 @@ export async function POST(request: NextRequest) {
   if (existing) {
     await adminSupabase
       .from('charts')
-      .update({ chart_json, updated_at: new Date().toISOString() })
+      .update({ chart_json, evidence_objects, updated_at: new Date().toISOString() })
       .eq('id', existing.id)
     chartId = existing.id
   } else {
     const { data: inserted, error: insertError } = await adminSupabase
       .from('charts')
-      .insert({ user_id: user.id, chart_json })
+      .insert({ user_id: user.id, chart_json, evidence_objects })
       .select('id')
       .single()
     if (insertError) console.error('[chart] insert error:', insertError)
