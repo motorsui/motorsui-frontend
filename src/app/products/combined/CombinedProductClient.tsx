@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
-import IntakeForm from '@/components/intake/IntakeForm'
+import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
 
 const NATAL_COLUMNS = [
@@ -141,16 +141,11 @@ export default function CombinedProductClient({ chart: initialChart, tier, hasIn
 
   if (!intakeComplete) {
     return (
-      <IntakeForm
-        formType="self"
+      <SelfIntakeForm
         chartId={String(initialChart.id ?? '')}
-        onComplete={async (answers) => {
-          const res = await fetch('/api/save-intake', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ formType: 'self', chartId: String(initialChart.id), answers }),
-          })
-          if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as Record<string,string>).error ?? 'Failed to save intake') }
-          setChart(prev => ({ ...prev, intake_self: answers }))
+        initialAnswers={(initialChart.intake_self as Record<string, string> | undefined) ?? undefined}
+        onComplete={async () => {
+          await refreshChart()
           setIntakeComplete(true)
         }}
       />

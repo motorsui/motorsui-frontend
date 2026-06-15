@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
-import IntakeForm from '@/components/intake/IntakeForm'
+import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
 
 // Natal-only columns. D-chart columns are a separate product — always skip them here.
@@ -198,21 +198,11 @@ export default function NatalProductClient({ chart: initialChart, tier, hasIntak
   // ── Intake gate ────────────────────────────────────────────────────────────
   if (!intakeComplete) {
     return (
-      <IntakeForm
-        formType="self"
+      <SelfIntakeForm
         chartId={String(initialChart.id ?? '')}
-        onComplete={async (answers) => {
-          const res = await fetch('/api/save-intake', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ formType: 'self', chartId: String(initialChart.id), answers }),
-          })
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}))
-            throw new Error((err as Record<string, string>).error ?? 'Failed to save intake')
-          }
-          // Merge intake into local chart state so useEffect can read it
-          setChart(prev => ({ ...prev, intake_self: answers }))
+        initialAnswers={(initialChart.intake_self as Record<string, string> | undefined) ?? undefined}
+        onComplete={async () => {
+          await refreshChart()
           setIntakeComplete(true)
         }}
       />
