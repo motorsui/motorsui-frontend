@@ -22,3 +22,22 @@ body {
   color: var(--color-shadow);
   font-family: var(--font-body);
 }
+
+/* Interpretation prose — restores paragraph spacing inside dangerouslySetInnerHTML content */
+.interp-prose > * + * {
+  margin-top: 1.1em;
+}
+.interp-prose p,
+.interp-prose h2,
+.interp-prose h3,
+.interp-prose h4,
+.interp-prose ul,
+.interp-prose ol {
+  display: block;
+}
+.interp-prose strong {
+  font-weight: 600;
+}
+.interp-prose em {
+  font-style: italic;
+}

@@ -1075,6 +1075,7 @@ function AccordionRow({
           <div style={{ padding: '4px 20px 20px' }}>
             {content ? (
               <div
+                className="interp-prose"
                 style={{
                   fontFamily: 'Georgia, serif',
                   color:      '#f4f1e8',

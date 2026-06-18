@@ -59,7 +59,7 @@ function SynastrySection({ label, content }: { label: string; content: string })
       {open && (
         <div style={{ padding: '0 24px 24px', fontFamily: 'var(--font-cormorant, serif)', fontSize: '16px', lineHeight: '1.8', color: 'rgba(244,241,232,0.85)' }}>
           {content
-            ? <div dangerouslySetInnerHTML={{ __html: content }} />
+            ? <div className="interp-prose" dangerouslySetInnerHTML={{ __html: content }} />
             : <span style={{ color: 'rgba(154,124,46,0.4)', fontStyle: 'italic' }}>Generating…</span>
           }
         </div>
