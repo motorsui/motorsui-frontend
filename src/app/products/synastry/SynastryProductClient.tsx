@@ -57,8 +57,11 @@ function SynastrySection({ label, content }: { label: string; content: string })
         <span style={{ color: '#9a7c2e', fontSize: '16px' }}>{open ? '−' : '+'}</span>
       </button>
       {open && (
-        <div style={{ padding: '0 24px 24px', fontFamily: 'var(--font-cormorant, serif)', fontSize: '16px', lineHeight: '1.8', color: 'rgba(244,241,232,0.85)', whiteSpace: 'pre-wrap' }}>
-          {content || <span style={{ color: 'rgba(154,124,46,0.4)', fontStyle: 'italic' }}>Generating…</span>}
+        <div style={{ padding: '0 24px 24px', fontFamily: 'var(--font-cormorant, serif)', fontSize: '16px', lineHeight: '1.8', color: 'rgba(244,241,232,0.85)' }}>
+          {content
+            ? <div dangerouslySetInnerHTML={{ __html: content }} />
+            : <span style={{ color: 'rgba(154,124,46,0.4)', fontStyle: 'italic' }}>Generating…</span>
+          }
         </div>
       )}
     </div>

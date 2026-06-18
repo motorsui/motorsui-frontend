@@ -1074,18 +1074,16 @@ function AccordionRow({
         <div style={{ overflow: 'hidden' }}>
           <div style={{ padding: '4px 20px 20px' }}>
             {content ? (
-              <p
+              <div
                 style={{
                   fontFamily: 'Georgia, serif',
                   color:      '#f4f1e8',
                   fontSize:   '15px',
                   lineHeight: '1.8',
-                  whiteSpace: 'pre-wrap',
                   margin:     0,
                 }}
-              >
-                {content}
-              </p>
+                dangerouslySetInnerHTML={{ __html: content }}
+              />
             ) : (
               <p
                 style={{
