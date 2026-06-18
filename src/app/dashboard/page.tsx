@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header'
 import Button from '@/components/ui/Button'
 
 const tierLabels: Record<number, string> = {
-  1: 'Free',
+  1: 'Standard',
   2: 'Paid',
   3: 'Full Access',
 }

@@ -30,7 +30,7 @@ export default function HomePage() {
 
         <div className="flex items-center gap-4">
           <Link href="/register">
-            <Button variant="primary" size="lg">Get My Free Chart</Button>
+            <Button variant="primary" size="lg">Get My Chart</Button>
           </Link>
           <Link href="/login">
             <Button variant="secondary" size="lg">Sign In</Button>

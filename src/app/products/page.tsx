@@ -8,7 +8,6 @@ interface Product {
   key:         string
   name:        string
   description: string
-  free:        boolean
   href:        string
   priceId:     string
 }
@@ -18,7 +17,6 @@ const PRODUCTS: Product[] = [
     key:         'natal_report',
     name:        'Natal Astrology Report',
     description: 'Sidereal Lahiri natal chart with full planetary placements, nakshatras, dignities, Vimshottari Dasha timeline, and Purusharthas.',
-    free:        false,
     href:        '/products/natal',
     priceId:     process.env.STRIPE_PRICE_ASTRO ?? '',
   },
@@ -26,7 +24,6 @@ const PRODUCTS: Product[] = [
     key:         'hd_report',
     name:        'Human Design Report',
     description: 'Full sidereal Human Design report: Type, Strategy, Authority, Profile, Incarnation Cross, Centers, Channels, and Variables.',
-    free:        false,
     href:        '/products/hd',
     priceId:     process.env.STRIPE_PRICE_HD ?? '',
   },
@@ -34,7 +31,6 @@ const PRODUCTS: Product[] = [
     key:         'divcharts_report',
     name:        'Divisional Charts Report',
     description: '20 divisional charts — D2 through D60 — covering wealth, career, soul, children, karma, and past life imprints.',
-    free:        false,
     href:        '/products/dcharts',
     priceId:     process.env.STRIPE_PRICE_DCHARTS ?? '',
   },
@@ -42,7 +38,6 @@ const PRODUCTS: Product[] = [
     key:         'combined_report',
     name:        'Combined Astrology + Human Design Report',
     description: 'Integrated sidereal astrology and Human Design synthesis. Natal chart signatures cross-referenced with HD type, centers, channels, and Gene Keys.',
-    free:        false,
     href:        '/products/combined',
     priceId:     process.env.STRIPE_PRICE_COMBINED ?? '',
   },
@@ -50,7 +45,6 @@ const PRODUCTS: Product[] = [
     key:         'synastry_report',
     name:        'Synastry Report',
     description: 'Full Jyotish synastry for two charts: Ashtakuta Moon compatibility, cross-chart aspects, karmic axis overlay, and timing alignment.',
-    free:        false,
     href:        '/products/synastry',
     priceId:     process.env.STRIPE_PRICE_SYNASTRY ?? '',
   },
@@ -58,7 +52,6 @@ const PRODUCTS: Product[] = [
     key:         'hd_composite_report',
     name:        'Human Design Composite Report',
     description: 'Full HD composite for two charts: electromagnetic connections, circuit field map, profile dynamics, center dominance, and conditioning triggers.',
-    free:        false,
     href:        '/products/hd-composite',
     priceId:     process.env.STRIPE_PRICE_HD_COMPOSITE ?? '',
   },
@@ -66,7 +59,6 @@ const PRODUCTS: Product[] = [
     key:         'parenting_astro_report',
     name:        'Parenting Astrology Report',
     description: 'Jyotish parenting analysis: parent-child synastry, 5th house signatures, Putrakaraka placement, and generational karmic patterns.',
-    free:        false,
     href:        '/products/parenting-astro',
     priceId:     process.env.STRIPE_PRICE_PARENTING_ASTRO ?? '',
   },
@@ -74,7 +66,6 @@ const PRODUCTS: Product[] = [
     key:         'parenting_hd_report',
     name:        'Parenting Human Design Report',
     description: 'HD parenting analysis: type interaction, authority dynamics, conditioning fields, and circuit compatibility between parent and child.',
-    free:        false,
     href:        '/products/parenting-hd',
     priceId:     process.env.STRIPE_PRICE_PARENTING_HD ?? '',
   },
@@ -118,13 +109,13 @@ export default async function ProductsPage() {
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {PRODUCTS.map((product) => {
-            const owned = product.free || purchased.includes(product.key)
+            const owned = purchased.includes(product.key)
 
             return (
               <div key={product.key} className={row}>
                 <div>
                   <p className={`${tag} ${owned ? 'text-[#9a7c2e]' : 'text-[#9a7c2e]/70'} mb-3`}>
-                    {product.free ? 'Free · Included' : owned ? 'Purchased' : 'Paid · Unlock'}
+                    {owned ? 'Purchased' : 'Paid · Unlock'}
                   </p>
                   <h2 className={h2}>{product.name}</h2>
                 </div>
