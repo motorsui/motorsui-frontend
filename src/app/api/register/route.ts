@@ -58,12 +58,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Registration failed — no user returned.' }, { status: 500 })
   }
 
+  // Supabase never errors on duplicate email (prevents enumeration) — it returns
+  // the existing user with identities: []. Detect and surface a clear message.
+  if ((authData.user.identities?.length ?? 0) === 0) {
+    return NextResponse.json(
+      { error: 'An account with this email already exists. Please sign in.' },
+      { status: 409 }
+    )
+  }
+
   const userId = authData.user.id
 
-  // ── 2. INSERT PROFILE ────────────────────────────────────────────────────────
+  // ── 2. UPSERT PROFILE ───────────────────────────────────────────────────────
+  // upsert instead of insert guards against orphaned auth rows (auth user exists
+  // but profile was never written — e.g. a previous failed registration).
   const { error: profileError } = await adminSupabase
     .from('profiles')
-    .insert({
+    .upsert({
       id:             userId,
       email,
       first_name,
@@ -78,10 +89,10 @@ export async function POST(request: NextRequest) {
       current_state:   current_state   ?? null,
       current_country: current_country ?? null,
       sms_consent:     sms_consent     === true,
-    })
+    }, { onConflict: 'id' })
 
   if (profileError) {
-    console.error('[register] profile insert error:', profileError)
+    console.error('[register] profile upsert error:', profileError)
     return NextResponse.json({ error: 'Profile creation failed.' }, { status: 500 })
   }
 
