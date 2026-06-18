@@ -10,9 +10,11 @@ export default async function NatalProductPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier')
+    .select('tier, purchased_products')
     .eq('id', user.id)
     .single()
+
+  if (!profile?.purchased_products?.includes('natal_report')) redirect('/products')
 
   const { data: chart } = await supabase
     .from('charts')
