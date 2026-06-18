@@ -28,8 +28,7 @@ export default async function ParentingAstroProductPage() {
   if (!chart) redirect('/charts')
 
   const tier = profile?.tier ?? 1
-  const intake = chart.intake_parenting as Record<string, string> | null
-  const hasIntake = !!intake && Object.keys(intake).length > 0
+  const hasIntake = chart.intake_parenting_complete === true
 
   let childChart = null
 

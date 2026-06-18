@@ -29,8 +29,7 @@ export default async function SynastryProductPage() {
   if (!chart) redirect('/charts')
 
   const tier = profile?.tier ?? 1
-  const intake = chart.intake_relational as Record<string, string> | null
-  const hasIntake = !!intake && Object.keys(intake).length > 0
+  const hasIntake = chart.intake_relational_complete === true
 
   // Fetch partner chart if it exists
   let partnerChart = null

@@ -28,8 +28,7 @@ export default async function HdCompositeProductPage() {
   if (!chart) redirect('/charts')
 
   const tier = profile?.tier ?? 1
-  const intake = chart.intake_relational as Record<string, string> | null
-  const hasIntake = !!intake && Object.keys(intake).length > 0
+  const hasIntake = chart.intake_relational_complete === true
 
   let partnerChart = null
   let compositeRow = null

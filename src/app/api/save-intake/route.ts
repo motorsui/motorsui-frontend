@@ -195,10 +195,11 @@ export async function POST(request: NextRequest) {
       partnerChartId = newId
     }
 
-    // Save intake + partner_chart_id to user's chart
+    // Save intake + partner_chart_id to user's chart.
+    // intake_relational_complete gates Products 5-6 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_relational: answers, partner_chart_id: partnerChartId })
+      .update({ intake_relational: answers, intake_relational_complete: true, partner_chart_id: partnerChartId })
       .eq('id', chartId)
 
     if (updateError) {
@@ -242,9 +243,10 @@ export async function POST(request: NextRequest) {
       childChartId = newId
     }
 
+    // intake_parenting_complete gates Products 7-8 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_parenting: answers, child_chart_id: childChartId })
+      .update({ intake_parenting: answers, intake_parenting_complete: true, child_chart_id: childChartId })
       .eq('id', chartId)
 
     if (updateError) {
