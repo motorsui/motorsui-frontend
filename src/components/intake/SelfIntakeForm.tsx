@@ -6,7 +6,7 @@ import {
   SELF_SECTIONS,
 } from '@/lib/intake-questions'
 
-const TOTAL = 38
+const TOTAL = SELF_QUESTION_LIST.length
 
 // Build section title lookup by question ID
 const questionSectionMap: Record<string, string> = {}
