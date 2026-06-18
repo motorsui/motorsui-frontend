@@ -26,8 +26,7 @@ export default async function NatalProductPage() {
 
   const tier = profile?.tier ?? 1
 
-  const intake = chart.intake_self as Record<string, string> | null
-  const hasIntake = !!intake && Object.keys(intake).length > 0
+  const hasIntake = chart.intake_self_complete === true
 
   return (
     <NatalProductClient

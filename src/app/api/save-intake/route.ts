@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
   if (formType === 'self') {
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_self: answers })
+      .update({ intake_self: answers, intake_self_complete: true })
       .eq('id', chartId)
 
     if (updateError) {

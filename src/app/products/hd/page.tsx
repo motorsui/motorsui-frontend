@@ -27,8 +27,7 @@ export default async function HdProductPage() {
   if (!chart) redirect('/charts')
 
   const tier = profile?.tier ?? 1
-  const intake = chart.intake_self as Record<string, string> | null
-  const hasIntake = !!intake && Object.keys(intake).length > 0
+  const hasIntake = chart.intake_self_complete === true
 
   return <HdProductClient chart={chart as Record<string, unknown>} tier={tier} hasIntake={hasIntake} />
 }
