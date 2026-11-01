@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import SynastryProductClient from './SynastryProductClient'
 
 export default async function SynastryProductPage() {
@@ -31,7 +31,8 @@ export default async function SynastryProductPage() {
   const tier = profile?.tier ?? 1
   const hasIntake = chart.intake_relational_complete === true
 
-  // Fetch partner chart if it exists
+  // Fetch partner chart if it exists. Both chart ids come from the caller's own
+  // rows; the pair row itself is RLS-locked and read with the admin client.
   let partnerChart = null
   let synastryRow = null
 
@@ -44,7 +45,7 @@ export default async function SynastryProductPage() {
     partnerChart = pc
 
     if (pc) {
-      const { data: sr } = await supabase
+      const { data: sr } = await createAdminClient()
         .from('synastry_interpretations')
         .select('*')
         .eq('chart_id_a', chart.id as string)
@@ -62,7 +63,7 @@ export default async function SynastryProductPage() {
       .maybeSingle()
     if (pc) {
       partnerChart = pc
-      const { data: sr } = await supabase
+      const { data: sr } = await createAdminClient()
         .from('synastry_interpretations')
         .select('*')
         .eq('chart_id_a', chart.id as string)

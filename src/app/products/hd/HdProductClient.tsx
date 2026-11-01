@@ -6,14 +6,8 @@ import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
 import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
+import { HD_COLUMNS, isMissing } from '@/lib/interpret/sections'
 
-const HD_COLUMNS = [
-  'hd_type_strategy_authority', 'hd_profile', 'hd_incarnation_cross', 'hd_definition',
-  'hd_center_head', 'hd_center_ajna', 'hd_center_throat', 'hd_center_g',
-  'hd_center_heart', 'hd_center_sacral', 'hd_center_solar_plexus',
-  'hd_center_spleen', 'hd_center_root',
-  'hd_variables', 'hd_shadow_gates', 'hd_circuits', 'hd_timing_events',
-]
 
 interface HdProductClientProps {
   chart:     Record<string, unknown>
@@ -57,26 +51,15 @@ export default function HdProductClient({ chart: initialChart, tier, hasIntake: 
   useEffect(() => {
     if (!intakeComplete) return
 
-    const missing = HD_COLUMNS.filter(col => {
-      const v = chart[col]
-      return !v || typeof v !== 'string' || v.trim() === ''
-    })
+    const missing = HD_COLUMNS.filter(col => isMissing(chart[col]))
     if (missing.length === 0) return
 
-    const skipColumns = HD_COLUMNS.filter(c => !missing.includes(c))
-    const intakeData  = (chart.intake_self ?? initialChart.intake_self) as Record<string, string> | null
 
     setGenerating(true)
     setTotal(missing.length)
     setDone(0)
 
-    const body = JSON.stringify({
-      chart_json:   chart.chart_json ?? initialChart.chart_json,
-      tier,
-      chart_id:     chartIdRef.current,
-      skip_columns: skipColumns,
-      intake_json:  intakeData ?? null,
-    })
+    const body = JSON.stringify({ chart_id: chartIdRef.current })
 
     let cancelled = false, completedCount = 0
 

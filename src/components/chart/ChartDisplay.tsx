@@ -42,26 +42,57 @@ const PLANET_ROWS: RowConfig[] = [
   { label: 'Pluto',   column: 'interp_pluto'   },
 ]
 
-function getAstroGroups(_mode: ChartMode): GroupConfig[] {
-  return [
-    { id: 'lagna', header: 'LAGNA', rows: [
-      { label: 'Lagna (Ascendant)',      column: 'interp_lagna'           },
-    ]},
-    { id: 'planets', header: 'PLANETS', rows: PLANET_ROWS },
-    { id: 'nodes', header: 'RAHU / KETU', rows: [
-      { label: 'Rahu', column: 'interp_rahu' },
-      { label: 'Ketu', column: 'interp_ketu' },
-    ]},
-    { id: 'dignities', header: 'DIGNITIES', rows: [
-      { label: 'Planetary Dignities', column: 'interp_dignities' },
-    ]},
-    { id: 'dashas', header: 'DASHAS', rows: [
-      { label: 'Dasha Timeline', column: 'interp_mahadasha' },
-    ]},
-    { id: 'purusharthas', header: 'PURUSHARTHAS', rows: [
-      { label: 'Dharma · Artha · Kama · Moksha', column: 'interp_purusharthas' },
-    ]},
-  ]
+// Embody Astro sections, in the backend's VALID_SECTIONS['natal'] order.
+const DOMAIN_GROUPS: GroupConfig[] = [
+  { id: 'identity', header: 'IDENTITY', rows: [
+    { label: 'Identity', column: 'interp_identity' },
+  ]},
+  { id: 'domains', header: 'LIFE DOMAINS', rows: [
+    { label: 'Relationships',           column: 'interp_relationships'         },
+    { label: 'Wealth',                  column: 'interp_wealth'                },
+    { label: 'Career',                  column: 'interp_career'                },
+    { label: 'Health',                  column: 'interp_health'                },
+    { label: 'Children',                column: 'interp_children'              },
+    { label: 'Father',                  column: 'interp_father'                },
+    { label: 'Mother',                  column: 'interp_mother'                },
+    { label: 'Lineage',                 column: 'interp_lineage'               },
+    { label: 'Spirituality',            column: 'interp_spirituality'          },
+    { label: 'Purpose',                 column: 'interp_purpose'               },
+    { label: 'Siblings',                column: 'interp_siblings'              },
+    { label: 'Crisis & Transformation', column: 'interp_crisis_transformation' },
+  ]},
+  { id: 'nodes', header: 'RAHU / KETU', rows: [
+    { label: 'Rahu', column: 'interp_rahu' },
+    { label: 'Ketu', column: 'interp_ketu' },
+  ]},
+  { id: 'dignities', header: 'DIGNITIES', rows: [
+    { label: 'Planetary Dignities', column: 'interp_dignities' },
+  ]},
+  { id: 'dashas', header: 'DASHAS', rows: [
+    { label: 'Dasha Timeline', column: 'interp_dasha_timeline' },
+  ]},
+  { id: 'purusharthas', header: 'PURUSHARTHAS', rows: [
+    { label: 'Dharma · Artha · Kama · Moksha', column: 'interp_purusharthas' },
+  ]},
+]
+
+// Sections from the earlier planet-by-planet format. Shown only where a chart
+// already holds that text, so stored readings stay visible.
+const LEGACY_ASTRO_GROUPS: GroupConfig[] = [
+  { id: 'legacy-lagna', header: 'LAGNA', rows: [
+    { label: 'Lagna (Ascendant)', column: 'interp_lagna' },
+  ]},
+  { id: 'legacy-planets', header: 'PLANETS', rows: PLANET_ROWS },
+  { id: 'legacy-dashas', header: 'MAHADASHA', rows: [
+    { label: 'Dasha Timeline', column: 'interp_mahadasha' },
+  ]},
+]
+
+function getAstroGroups(_mode: ChartMode, chart: ChartRecord | null): GroupConfig[] {
+  const legacy = LEGACY_ASTRO_GROUPS
+    .map(g => ({ ...g, rows: g.rows.filter(r => getContent(chart, r.column) !== null) }))
+    .filter(g => g.rows.length > 0)
+  return [...DOMAIN_GROUPS, ...legacy]
 }
 
 // ─── D-Charts accordion config ────────────────────────────────────────────────
@@ -106,6 +137,13 @@ function getJsonb(chart: ChartRecord | null, column: string): Record<string, str
   const val = chart[column]
   if (!val || typeof val !== 'object' || Array.isArray(val)) return {}
   return val as Record<string, string>
+}
+
+// hd_channels / hd_gates are JSONB holding either a keyed object (legacy
+// per-channel / per-gate text) or a single string (backend combined section).
+function getJsonbText(chart: ChartRecord | null, column: string): string | null {
+  const val = chart?.[column]
+  return typeof val === 'string' && val.trim() ? cleanText(val) : null
 }
 
 // ─── HD data helpers ──────────────────────────────────────────────────────────
@@ -716,6 +754,8 @@ function HDInterpretationPanel({
 }) {
   const hdChannels = getJsonb(chart, 'hd_channels')
   const hdGates    = getJsonb(chart, 'hd_gates')
+  const channelsText = getJsonbText(chart, 'hd_channels')
+  const gatesText    = getJsonbText(chart, 'hd_gates')
 
   const fixedGroups: GroupConfig[] = [
     { id: 'hd-interp-overview', header: 'OVERVIEW', rows: [
@@ -774,6 +814,19 @@ function HDInterpretationPanel({
         </div>
       ))}
 
+      {channelsText !== null && (
+        <div>
+          <GroupHeader label="CHANNELS" />
+          <AccordionRow
+            rowKey={`${idPrefix}-channels`}
+            label="Defined Channels"
+            content={channelsText}
+            isOpen={openRows.has(`${idPrefix}-channels`)}
+            onToggle={() => onToggle(`${idPrefix}-channels`)}
+          />
+        </div>
+      )}
+
       {hasChannelInterp && (
         <div>
           <GroupHeader label="CHANNELS" />
@@ -791,6 +844,19 @@ function HDInterpretationPanel({
               />
             )
           })}
+        </div>
+      )}
+
+      {gatesText !== null && (
+        <div>
+          <GroupHeader label="GATES" />
+          <AccordionRow
+            rowKey={`${idPrefix}-gates`}
+            label="Activated Gates"
+            content={gatesText}
+            isOpen={openRows.has(`${idPrefix}-gates`)}
+            onToggle={() => onToggle(`${idPrefix}-gates`)}
+          />
         </div>
       )}
 
@@ -1135,7 +1201,7 @@ export default function ChartDisplay({
   const [activeTab, setActiveTab] = useState<TabId>('d1')
   const [openRows,  setOpenRows]  = useState<Set<string>>(new Set())
 
-  const astroGroups = getAstroGroups(mode)
+  const astroGroups = getAstroGroups(mode, chart)
 
   function toggleRow(key: string) {
     setOpenRows(prev => {

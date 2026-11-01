@@ -1,24 +1,24 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { postProcess } from '@/lib/interpret/post-process'
-import { extractBirthPayload, fetchDomainConclusions, buildDomainContextBlock } from '@/lib/interpret/domain-conclusions'
+import { extractBirthPayload, fetchDomainConclusions } from '@/lib/interpret/domain-conclusions'
+import {
+  birthFromChartJson, configureSystemDoc, fetchCalculation, fetchGoverningDoc, findOrCreatePairRow,
+  generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
+} from '@/lib/interpret/backend'
 
-// ─── Governing documents ──────────────────────────────────────────────────────
+// ─── Loving Astro (synastry) ──────────────────────────────────────────────────
 //
-// Synastry is a Jyotish product. Uses:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE_SYNASTRY.md (self-contained)
+// Generated here. Governing documents, served by the backend:
+//   CLAUDE_SYSTEM.md + CLAUDE_SYNASTRY.md + PSYCHOLOGY LAYER (CLAUDE_CORE_SYNASTRY.md)
 //
-// Payload contains both persons' natal astrology data.
-// HD data stripped from both charts before sending.
+// Person A is the caller's own chart; Person B is the caller's partner chart.
+// The browser supplies neither: both are resolved from the caller's rows.
+// Payload: both persons' natal astrology (HD stripped) plus the calculated
+// /astrology/synastry compatibility signals, intake and domain conclusions.
 // Compatibility content explicitly authorized in every user message discipline declaration.
 
-const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
-
-const ASTRO_DOC_URLS = {
-  system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE_SYNASTRY.md`,
-}
+const TABLE = 'synastry_interpretations'
 
 // ─── Section definitions — 30 fixed sections ─────────────────────────────────
 
@@ -209,10 +209,10 @@ const SELF_REVIEW =
 
 // ─── Layer 1 — Synastry payload builder ──────────────────────────────────────
 //
-// Strips HD data from both charts. Sends only natal astrology + birth data
-// for each person, labeled person_a and person_b.
+// Strips HD data from both charts. Sends natal astrology + birth data for each
+// person, labeled person_a and person_b.
 
-function buildSynastryPayload(chartJsonA: unknown, chartJsonB: unknown): unknown {
+function buildSynastryPayload(chartJsonA: unknown, chartJsonB: unknown): Record<string, unknown> {
   function stripNatal(json: Record<string, unknown>): Record<string, unknown> {
     const natal = { ...(json.natal as Record<string, unknown> ?? {}) }
     delete natal.karmic_gate_overlay
@@ -243,6 +243,7 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
   const scopeBlock =
     `Interpret ${section.name}. ` +
     `Both persons\' chart data are provided labeled person_a and person_b. ` +
+    `The calculated compatibility signals for the pair are in compatibility. ` +
     `Speak directly to Person A in second person. ` +
     `Reference Person B by name if a name is available in the birth data, otherwise as your partner. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
@@ -259,189 +260,84 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
+// Returns the caller's stored synastry row (RLS keeps pair rows server-side).
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return jsonError('Unauthorized', 401)
+  if (!(await hasEntitlement(supabase, user.id, ['synastry_report']))) return jsonError('Not purchased', 403)
+  const pair = await loadOwnedPair(supabase, user.id)
+  if (pair instanceof Response) return pair
+  const { data } = await createAdminClient()
+    .from(TABLE).select('*').eq('chart_id_a', String(pair.self.id)).eq('chart_id_b', String(pair.partner.id)).maybeSingle()
+  return Response.json({ row: data ?? null })
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
+  if (!user) return jsonError('Unauthorized', 401)
+  if (!(await hasEntitlement(supabase, user.id, ['synastry_report']))) return jsonError('Not purchased', 403)
+
+  const body  = await request.json().catch(() => ({})) as { columns?: unknown }
+  const asked = Array.isArray(body.columns) ? new Set(body.columns.map(String)) : null
+
+  const pair = await loadOwnedPair(supabase, user.id)
+  if (pair instanceof Response) return pair
+  const { self, partner } = pair
+  const birthA = birthFromChartJson(self.chart_json)
+  const birthB = birthFromChartJson(partner.chart_json)
+  if (!birthA || !birthB) return jsonError('Chart has no usable birth data', 422)
+  const intake = (self.intake_relational as Record<string, unknown> | null) ?? null
+
+  const admin = createAdminClient()
+  const row   = await findOrCreatePairRow(admin, TABLE, String(self.id), String(partner.id))
+  const missing = SYNASTRY_SECTIONS.map(s => s.column).filter(c => isMissing(row[c]) && (!asked || asked.has(c)))
+  const skipped = SYNASTRY_SECTIONS.map(s => s.column).filter(c => !missing.includes(c))
+  const byColumn = new Map(SYNASTRY_SECTIONS.map(s => [s.column, s]))
+
+  // Assembled once, on first pending section. Any failure fails every section.
+  let context: Promise<{ system: string; payloadStr: string }> | null = null
+  const getContext = () => context ??= (async () => {
+    const conclusionBirth = extractBirthPayload(self.chart_json)
+    const [systemDoc, familyDoc, coreDoc, compatibility, conclusions] = await Promise.all([
+      fetchGoverningDoc('CLAUDE_SYSTEM.md'),
+      fetchGoverningDoc('CLAUDE_SYNASTRY.md'),
+      fetchGoverningDoc('CLAUDE_CORE_SYNASTRY.md'),
+      fetchCalculation('/astrology/synastry', { person1: birthA, person2: birthB }),
+      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake) : Promise.resolve(null),
+    ])
+    const configured = configureSystemDoc(systemDoc, {
+      product:       'synastry',
+      personA:       'person_a',
+      personB:       'person_b',
+      intake:        !!intake,
+      conclusions:   !!conclusions,
+      classicalOnly: false,
     })
-  }
-
-  const body = await request.json()
-  const { chart_id_a, chart_id_b, tier, skip_columns, intake_json } = body as {
-    chart_id_a:    string
-    chart_id_b:    string
-    tier:          number
-    skip_columns?: string[]
-    intake_json?:  Record<string, string> | null
-  }
-
-  if (!chart_id_a || !chart_id_b) {
-    return new Response(JSON.stringify({ error: 'chart_id_a and chart_id_b are required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  const skipSet       = new Set(Array.isArray(skip_columns) ? skip_columns : [])
-  const adminSupabase = createAdminClient()
-
-  // Load both charts by ID — not session-restricted; any authenticated user can run synastry
-  const [{ data: chartA, error: errA }, { data: chartB, error: errB }] = await Promise.all([
-    adminSupabase.from('charts').select('chart_json').eq('id', chart_id_a).single(),
-    adminSupabase.from('charts').select('chart_json').eq('id', chart_id_b).single(),
-  ])
-
-  if (errA || errB || !chartA?.chart_json || !chartB?.chart_json) {
-    return new Response(JSON.stringify({ error: 'One or both charts not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  // Upsert synastry row for this ordered pair (A→B is directional; B→A is a separate reading)
-  const { data: existing } = await adminSupabase
-    .from('synastry_interpretations')
-    .select('id')
-    .eq('chart_id_a', chart_id_a)
-    .eq('chart_id_b', chart_id_b)
-    .maybeSingle()
-
-  let synastryId: string
-
-  if (existing) {
-    synastryId = existing.id
-  } else {
-    const { data: inserted, error: insertError } = await adminSupabase
-      .from('synastry_interpretations')
-      .insert({ chart_id_a, chart_id_b })
-      .select('id')
-      .single()
-
-    if (insertError || !inserted) {
-      console.error('[interpret-synastry] failed to create synastry record:', insertError)
-      return new Response(JSON.stringify({ error: 'Failed to create synastry record' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    const payload = buildSynastryPayload(self.chart_json, partner.chart_json)
+    payload.compatibility = compatibility
+    if (intake)      payload.intake = intake
+    if (conclusions) payload.domain_conclusions = conclusions
+    return {
+      system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc,
+      payloadStr: JSON.stringify(payload, null, 2),
     }
-
-    synastryId = inserted.id
-  }
-
-  // Fetch governing documents + domain conclusions in parallel
-  const birthPayload = extractBirthPayload(chartA.chart_json)
-  const [systemDoc, coreDoc, domainConclusions] = await Promise.all([
-    fetch(ASTRO_DOC_URLS.system).then(r => r.text()),
-    fetch(ASTRO_DOC_URLS.core).then(r => r.text()),
-    birthPayload
-      ? fetchDomainConclusions(birthPayload, 'relational', intake_json ?? null)
-      : Promise.resolve(null),
-  ])
-
-  // Configure system doc — note: CHART_JSON_B is provided (two-person session)
-  let systemDoc_configured = systemDoc
-  systemDoc_configured = systemDoc_configured.replace('[TIER_1 / TIER_2 / TIER_3]', `TIER_${tier}`)
-  systemDoc_configured = systemDoc_configured.replace('[USER_NAME]', user.email ?? 'User')
-  systemDoc_configured = systemDoc_configured.replace('[TRUE / FALSE]', 'FALSE')
-  systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON[^\]]*\]/g, 'Provided in the conversation turn.')
-  systemDoc_configured = systemDoc_configured.replace(
-    /\[INTAKE_JSON[^\]]*\]/g,
-    intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
-  )
-  systemDoc_configured = systemDoc_configured.replace(
-    /\[DOMAIN_CONCLUSIONS_JSON[^\]]*\]/g,
-    buildDomainContextBlock(domainConclusions)
-  )
-  systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'Provided in the conversation turn.')
-
-  const synastrySystemPrompt = [
-    systemDoc_configured,
-    '\n\n---\n\n',
-    coreDoc,
-  ].join('')
-
-  console.log(
-    `[interpret-synastry] system prompt assembled — ${synastrySystemPrompt.length} chars | ` +
-    `${SYNASTRY_SECTIONS.length} sections | ${chart_id_a}×${chart_id_b}`
-  )
-
-  // Layer 1 — Strip HD data from both charts
-  const payload    = buildSynastryPayload(chartA.chart_json, chartB.chart_json)
-  const payloadStr = JSON.stringify(payload, null, 2)
+  })()
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const encoder   = new TextEncoder()
+  const rowId     = String(row.id)
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      function send(payload: object) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
-      }
-
-      const completed: string[] = []
-      const sectionsToRun = SYNASTRY_SECTIONS.filter(s => !skipSet.has(s.column))
-
-      for (const section of sectionsToRun) {
-        console.log(`[interpret-synastry] generating ${section.column}`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  4096,
-            temperature: 0.3,
-            system:      synastrySystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildSynastryUserMessage(section, payloadStr),
-            }],
-          })
-
-          const raw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(raw, anthropic, section.column)
-
-          if (synastryId && text) {
-            const { error: dbError } = await adminSupabase
-              .from('synastry_interpretations')
-              .update({ [section.column]: text, updated_at: new Date().toISOString() })
-              .eq('id', synastryId)
-
-            if (dbError) console.error(`[interpret-synastry] db write failed for ${section.column}:`, dbError)
-          }
-
-          completed.push(section.column)
-          console.log(`[interpret-synastry] ${section.column} done — ${text.length} chars`)
-          send({ column: section.column, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-synastry] ${section.column} failed:`, err)
-          send({ column: section.column, status: 'error', error: String(err) })
-        }
-      }
-
-      send({
-        done:      true,
-        completed,
-        synastry_id: synastryId,
-        total:     SYNASTRY_SECTIONS.length,
-        skipped:   Array.from(skipSet),
-      })
-      controller.close()
-    },
-  })
-
-  return new Response(readable, {
-    headers: {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
-    },
+  return sectionStream('interpret-synastry', missing, skipped, async column => {
+    const section = byColumn.get(column)!
+    const ctx     = await getContext()
+    const result  = await generateDirect({
+      anthropic,
+      system:  ctx.system,
+      user:    buildSynastryUserMessage(section, ctx.payloadStr),
+      section: column,
+    })
+    await writeRow(admin, TABLE, rowId, { [column]: result.text })
+    return result
   })
 }

@@ -6,29 +6,9 @@ import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
 import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
-
-const NATAL_COLUMNS = [
-  'interp_lagna', 'interp_sun', 'interp_moon', 'interp_mercury', 'interp_venus',
-  'interp_mars', 'interp_jupiter', 'interp_saturn', 'interp_uranus', 'interp_neptune',
-  'interp_pluto', 'interp_rahu', 'interp_ketu', 'interp_dignities', 'interp_mahadasha', 'interp_purusharthas',
-]
-
-const DCHART_COLUMNS = [
-  'interp_d2', 'interp_d3', 'interp_d4', 'interp_d5', 'interp_d6',
-  'interp_d7', 'interp_d8', 'interp_d9', 'interp_d10', 'interp_d11',
-  'interp_d12', 'interp_d16', 'interp_d20', 'interp_d24', 'interp_d27',
-  'interp_d30', 'interp_d40', 'interp_d45', 'interp_d60',
-]
+import { NATAL_COLUMNS, DCHART_COLUMNS, HD_COLUMNS, isMissing } from '@/lib/interpret/sections'
 
 const ALL_ASTRO_COLUMNS = [...NATAL_COLUMNS, ...DCHART_COLUMNS]
-
-const HD_COLUMNS = [
-  'hd_type_strategy_authority', 'hd_profile', 'hd_incarnation_cross', 'hd_definition',
-  'hd_center_head', 'hd_center_ajna', 'hd_center_throat', 'hd_center_g',
-  'hd_center_heart', 'hd_center_sacral', 'hd_center_solar_plexus',
-  'hd_center_spleen', 'hd_center_root',
-  'hd_variables', 'hd_shadow_gates', 'hd_circuits', 'hd_timing_events',
-]
 
 interface CombinedProductClientProps {
   chart:     Record<string, unknown>
@@ -68,17 +48,11 @@ export default function CombinedProductClient({ chart: initialChart, tier, hasIn
   useEffect(() => {
     if (!intakeComplete) return
 
-    const missingAstro = ALL_ASTRO_COLUMNS.filter(col => {
-      const v = chart[col]; return !v || typeof v !== 'string' || v.trim() === ''
-    })
-    const missingHd = HD_COLUMNS.filter(col => {
-      const v = chart[col]; return !v || typeof v !== 'string' || v.trim() === ''
-    })
+    const missingAstro = ALL_ASTRO_COLUMNS.filter(col => isMissing(chart[col]))
+    const missingHd    = HD_COLUMNS.filter(col => isMissing(chart[col]))
 
     if (missingAstro.length === 0 && missingHd.length === 0) return
 
-    const intakeData = (chart.intake_self ?? initialChart.intake_self) as Record<string, string> | null
-    const chartJson  = chart.chart_json ?? initialChart.chart_json
     const chartId    = chartIdRef.current
 
     setGenerating(true)
@@ -113,22 +87,10 @@ export default function CombinedProductClient({ chart: initialChart, tier, hasIn
     async function run() {
       try {
         if (missingAstro.length > 0) {
-          await stream('/api/interpret', JSON.stringify({
-            chart_json:   chartJson,
-            tier,
-            chart_id:     chartId,
-            skip_columns: ALL_ASTRO_COLUMNS.filter(c => !missingAstro.includes(c)),
-            intake_json:  intakeData ?? null,
-          }))
+          await stream('/api/interpret', JSON.stringify({ chart_id: chartId, product: 'combined' }))
         }
         if (!cancelled && missingHd.length > 0) {
-          await stream('/api/interpret-hd', JSON.stringify({
-            chart_json:   chartJson,
-            tier,
-            chart_id:     chartId,
-            skip_columns: HD_COLUMNS.filter(c => !missingHd.includes(c)),
-            intake_json:  intakeData ?? null,
-          }))
+          await stream('/api/interpret-hd', JSON.stringify({ chart_id: chartId }))
         }
       } catch (err) { console.error('[CombinedProductClient]', err) }
       finally { if (!cancelled) setGenerating(false) }

@@ -1,20 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Header from '@/components/layout/Header'
 import RelationalIntakeForm from '@/components/intake/RelationalIntakeForm'
 
-const COMPOSITE_COLUMNS = [
-  'composite_relationship_theme', 'composite_profile_compatibility', 'composite_type_compatibility',
-  'composite_split_bridge', 'composite_circuit_field', 'composite_conditioning_triggers',
-  'composite_group_roles', 'composite_ancestral_views', 'composite_gate_line_resonance',
-  'composite_karmic_axis',
-]
-
 interface CompositeRow extends Record<string, unknown> {
   chart_id_a: string
   chart_id_b: string
+}
+
+// Per-channel section, as listed by GET /api/interpret-composite. Its text is
+// stored in row[map][key].
+interface ChannelSection {
+  column: string
+  map:    string
+  key:    string
+  label:  string
 }
 
 interface HdCompositeProductClientProps {
@@ -60,7 +62,7 @@ function CompositeSection({ label, content }: { label: string; content: string }
   )
 }
 
-function CompositeReport({ compositeRow }: { compositeRow: CompositeRow | null }) {
+function CompositeReport({ compositeRow, channels }: { compositeRow: CompositeRow | null; channels: ChannelSection[] }) {
   const sections = [
     { key: 'composite_relationship_theme',     label: 'Relationship Theme' },
     { key: 'composite_profile_compatibility',  label: 'Profile Compatibility' },
@@ -82,6 +84,10 @@ function CompositeReport({ compositeRow }: { compositeRow: CompositeRow | null }
       {sections.map(s => (
         <CompositeSection key={s.key} label={s.label} content={String((compositeRow?.[s.key] as string | null) ?? '')} />
       ))}
+      {channels.map(c => (
+        <CompositeSection key={c.column} label={c.label}
+          content={String(((compositeRow?.[c.map] as Record<string, string> | null | undefined)?.[c.key]) ?? '')} />
+      ))}
     </div>
   )
 }
@@ -90,7 +96,6 @@ export default function HdCompositeProductClient({
   chart: initialChart,
   partnerChart: initialPartnerChart,
   compositeRow: initialCompositeRow,
-  tier,
   hasIntake: initialHasIntake,
   hasPartnerChart: initialHasPartnerChart,
 }: HdCompositeProductClientProps) {
@@ -104,12 +109,16 @@ export default function HdCompositeProductClient({
   const [partnerChartReady, setPartnerChartReady] = useState(initialHasPartnerChart)
   const [phase, setPhase] = useState<'form' | 'report'>(initialHasIntake ? 'report' : 'form')
   const [partnerLink, setPartnerLink] = useState('')
-  const chartIdRef = useRef<string>(String(initialChart.id ?? ''))
+  const [channels, setChannels] = useState<ChannelSection[]>([])
 
-  const refreshComposite = useCallback(async (a: string, b: string) => {
-    const { data } = await supabase.from('hd_composite_interpretations').select('*').eq('chart_id_a', a).eq('chart_id_b', b).maybeSingle()
-    if (data) setCompositeRow(data as CompositeRow)
-  }, [supabase])
+  const refreshComposite = useCallback(async (): Promise<string[] | null> => {
+    const res = await fetch('/api/interpret-composite', { cache: 'no-store' })
+    if (!res.ok) return null
+    const { row, channels: list, pending } = await res.json() as { row: CompositeRow | null; channels: ChannelSection[]; pending: string[] | null }
+    if (row) setCompositeRow(row)
+    setChannels(list)
+    return pending
+  }, [])
 
   const fetchPartnerChart = useCallback(async () => {
     const { data } = await supabase.from('charts').select('*').eq('user_id', String(initialChart.user_id)).eq('chart_label', 'partner').maybeSingle()
@@ -118,24 +127,17 @@ export default function HdCompositeProductClient({
 
   useEffect(() => {
     if (!intakeComplete || !partnerChartReady) return
-    const pid = (partnerChart?.id as string | undefined) ?? ''
-    if (!pid) return
-
-    const row = compositeRow as Record<string, unknown> | null
-    const missing = COMPOSITE_COLUMNS.filter(col => { const v = row?.[col]; return !v || typeof v !== 'string' || (v as string).trim() === '' })
-    if (missing.length === 0) return
-
-    const skipColumns = COMPOSITE_COLUMNS.filter(c => !missing.includes(c))
-    const intakeData  = (initialChart.intake_relational) as Record<string, string> | null
-
-    setGenerating(true); setTotal(missing.length); setDone(0)
+    if (!partnerChart?.id) return
     let cancelled = false, completedCount = 0
 
     async function stream() {
       try {
+        const missing = await refreshComposite()
+        if (cancelled || !missing || missing.length === 0) return
+        setGenerating(true); setTotal(missing.length); setDone(0)
         const res = await fetch('/api/interpret-composite', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chart_id_a: chartIdRef.current, chart_id_b: pid, tier, skip_columns: skipColumns, intake_json: intakeData ?? null }),
+          body: JSON.stringify({ columns: missing }),
         })
         if (!res.ok || !res.body) { setGenerating(false); return }
         const reader = res.body.getReader(), decoder = new TextDecoder()
@@ -149,8 +151,8 @@ export default function HdCompositeProductClient({
             if (!line.startsWith('data: ')) continue
             try {
               const ev = JSON.parse(line.slice(6)) as Record<string, unknown>
-              if (ev.done) { await refreshComposite(chartIdRef.current, pid); if (!cancelled) setGenerating(false); return }
-              if (ev.status === 'done' || ev.status === 'error') { completedCount++; if (!cancelled) setDone(completedCount); await refreshComposite(chartIdRef.current, pid) }
+              if (ev.done) { await refreshComposite(); if (!cancelled) setGenerating(false); return }
+              if (ev.status === 'done' || ev.status === 'error') { completedCount++; if (!cancelled) setDone(completedCount); await refreshComposite() }
             } catch { /* skip */ }
           }
         }
@@ -183,7 +185,12 @@ export default function HdCompositeProductClient({
       {generating && <ProgressBar done={done} total={total} />}
       <div style={{ paddingTop: generating ? '36px' : '0', backgroundColor: '#0e0c0b', minHeight: '100vh' }}>
         <Header />
-        <CompositeReport compositeRow={compositeRow} />
+        {partnerLink && (
+          <p style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '12px', color: 'rgba(244,241,232,0.7)', wordBreak: 'break-all' }}>
+            Send this link to your partner to complete their intake: <a href={partnerLink} style={{ color: '#9a7c2e' }}>{partnerLink}</a>
+          </p>
+        )}
+        <CompositeReport compositeRow={compositeRow} channels={channels} />
       </div>
     </>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Header from '@/components/layout/Header'
 import RelationalIntakeForm from '@/components/intake/RelationalIntakeForm'
@@ -127,7 +127,6 @@ export default function SynastryProductClient({
   chart: initialChart,
   partnerChart: initialPartnerChart,
   synastryRow: initialSynastryRow,
-  tier,
   hasIntake: initialHasIntake,
   hasPartnerChart: initialHasPartnerChart,
 }: SynastryProductClientProps) {
@@ -141,17 +140,14 @@ export default function SynastryProductClient({
   const [partnerChartReady, setPartnerChartReady] = useState(initialHasPartnerChart)
   const [phase, setPhase] = useState<'form' | 'report'>(initialHasIntake ? 'report' : 'form')
   const [partnerLink, setPartnerLink] = useState('')
-  const chartIdRef = useRef<string>(String(initialChart.id ?? ''))
 
-  const refreshSynastry = useCallback(async (chartIdA: string, chartIdB: string) => {
-    const { data } = await supabase
-      .from('synastry_interpretations')
-      .select('*')
-      .eq('chart_id_a', chartIdA)
-      .eq('chart_id_b', chartIdB)
-      .maybeSingle()
-    if (data) setSynastryRow(data as SynastryRow)
-  }, [supabase])
+  // Pair rows are RLS-locked; the route returns the caller's own row.
+  const refreshSynastry = useCallback(async () => {
+    const res = await fetch('/api/interpret-synastry', { cache: 'no-store' })
+    if (!res.ok) return
+    const { row } = await res.json() as { row: SynastryRow | null }
+    if (row) setSynastryRow(row)
+  }, [])
 
   // After intake save, re-fetch partner chart if it was just created
   const fetchPartnerChart = useCallback(async () => {
@@ -177,8 +173,6 @@ export default function SynastryProductClient({
     })
     if (missing.length === 0) return
 
-    const skipColumns = SYNASTRY_COLUMNS.filter(c => !missing.includes(c))
-    const intakeData  = (initialChart.intake_relational) as Record<string, string> | null
 
     setGenerating(true)
     setTotal(missing.length)
@@ -190,7 +184,7 @@ export default function SynastryProductClient({
       try {
         const res = await fetch('/api/interpret-synastry', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chart_id_a: chartIdRef.current, chart_id_b: pid, tier, skip_columns: skipColumns, intake_json: intakeData ?? null }),
+          body: JSON.stringify({ columns: missing }),
         })
         if (!res.ok || !res.body) { setGenerating(false); return }
         const reader = res.body.getReader(), decoder = new TextDecoder()
@@ -204,8 +198,8 @@ export default function SynastryProductClient({
             if (!line.startsWith('data: ')) continue
             try {
               const ev = JSON.parse(line.slice(6)) as Record<string, unknown>
-              if (ev.done) { await refreshSynastry(chartIdRef.current, pid); if (!cancelled) setGenerating(false); return }
-              if (ev.status === 'done' || ev.status === 'error') { completedCount++; if (!cancelled) setDone(completedCount); await refreshSynastry(chartIdRef.current, pid) }
+              if (ev.done) { await refreshSynastry(); if (!cancelled) setGenerating(false); return }
+              if (ev.status === 'done' || ev.status === 'error') { completedCount++; if (!cancelled) setDone(completedCount); await refreshSynastry() }
             } catch { /* skip */ }
           }
         }
@@ -238,6 +232,11 @@ export default function SynastryProductClient({
       {generating && <ProgressBar done={done} total={total} />}
       <div style={{ paddingTop: generating ? '36px' : '0', backgroundColor: '#0e0c0b', minHeight: '100vh' }}>
         <Header />
+        {partnerLink && (
+          <p style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '12px', color: 'rgba(244,241,232,0.7)', wordBreak: 'break-all' }}>
+            Send this link to your partner to complete their intake: <a href={partnerLink} style={{ color: '#9a7c2e' }}>{partnerLink}</a>
+          </p>
+        )}
         <SynastryReport synastryRow={synastryRow} />
       </div>
     </>

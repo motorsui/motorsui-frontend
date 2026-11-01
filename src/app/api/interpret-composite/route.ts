@@ -1,31 +1,33 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { postProcess } from '@/lib/interpret/post-process'
-import { extractBirthPayload, fetchDomainConclusions, buildDomainContextBlock } from '@/lib/interpret/domain-conclusions'
+import { extractBirthPayload, fetchDomainConclusions } from '@/lib/interpret/domain-conclusions'
+import {
+  birthFromChartJson, configureSystemDoc, fetchCalculation, fetchGoverningDoc, findOrCreatePairRow,
+  generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
+  InterpretFailure,
+} from '@/lib/interpret/backend'
 
-// ─── Governing documents ──────────────────────────────────────────────────────
+// ─── Loving HD (composite) ────────────────────────────────────────────────────
 //
-// HD Composite is an HD product. Uses:
-//   CLAUDE_SYSTEM.md + CLAUDE_CORE_COMPOSITE.md (self-contained)
+// Generated here. Governing documents, served by the backend:
+//   CLAUDE_SYSTEM.md + CLAUDE_HD_COMPOSITE.md + PSYCHOLOGY LAYER (CLAUDE_CORE_COMPOSITE.md)
 //
 // CLAUDE_ASTRO.md is NOT loaded — no Jyotish content in composite sections.
-// Payload contains only HD data from both persons — natal astrology stripped.
+// Person A is the caller's own chart; Person B is the caller's partner chart.
 //
 // Three contamination layers (reversed from astrology route):
-//   Layer 1 — Payload: only { person_a: {hd, birth}, person_b: {hd, birth} }
-//   Layer 2 — System prompt: no ASTRO doc; CLAUDE_CORE_COMPOSITE.md loaded directly
+//   Layer 1 — Payload: person_a/person_b {hd, birth} + /hd/composite output,
+//             with the Jyotish fields of karmic_axis_overlay removed
+//   Layer 2 — System prompt: no ASTRO doc
 //   Layer 3 — User message: hard declaration forbidding Jyotish; compatibility authorized
 
-const DOC_BASE = 'https://raw.githubusercontent.com/motorsui/motorsui-chart-api/main'
-
-const HD_DOC_URLS = {
-  system: `${DOC_BASE}/CLAUDE_SYSTEM.md`,
-  core:   `${DOC_BASE}/CLAUDE_CORE_COMPOSITE.md`,
-}
+const TABLE = 'hd_composite_interpretations'
 
 // ─── Channel pairs — all 35 defined HD channels ───────────────────────────────
-// Used to classify composite channels as EM / dominant / compromise / friendship.
+// Used only for friendship channels (shared gate, channel complete in neither
+// person). EM / dominant / compromise come from the backend's
+// channel_dominance_map, the same calculation that defines each chart.
 
 interface ChannelPair {
   a:    number
@@ -151,84 +153,54 @@ interface CompositeChannels {
   friendship: FriendshipEntry[]
 }
 
-function extractGateNumbers(hdData: unknown): Set<number> {
-  const hd      = hdData as Record<string, unknown>
-  const gateSet = new Set<number>()
-
-  const gatesField  = hd?.gates as Record<string, unknown> | undefined
-  const personality = (gatesField?.personality ?? hd?.personality_gates ?? []) as Array<Record<string, unknown>>
-  const design      = (gatesField?.design       ?? hd?.design_gates      ?? []) as Array<Record<string, unknown>>
-  const allFlat     = (hd?.all_gates            ?? [])                           as Array<Record<string, unknown>>
-
-  for (const g of [...personality, ...design, ...allFlat]) {
-    const num = Number(g.gate ?? g.number ?? g.id ?? 0)
-    if (num >= 1 && num <= 64) gateSet.add(num)
-  }
-
-  return gateSet
-}
-
-function computeCompositeChannels(gatesA: Set<number>, gatesB: Set<number>): CompositeChannels {
-  const result: CompositeChannels = {
-    em: [], dominantA: [], dominantB: [], compromise: [], friendship: [],
-  }
-  const assigned = new Set<string>()
-
-  for (const ch of CHANNEL_PAIRS) {
-    const key      = `${ch.a}-${ch.b}`
-    const aHasA    = gatesA.has(ch.a)
-    const aHasB    = gatesA.has(ch.b)
-    const bHasA    = gatesB.has(ch.a)
-    const bHasB    = gatesB.has(ch.b)
-    const aComplete = aHasA && aHasB
-    const bComplete = bHasA && bHasB
-
-    if (aComplete && bComplete) {
-      result.compromise.push({ key, name: ch.name })
-    } else if (aComplete) {
-      result.dominantA.push({ key, name: ch.name })
-    } else if (bComplete) {
-      result.dominantB.push({ key, name: ch.name })
-    } else if ((aHasA && bHasB) || (aHasB && bHasA)) {
-      result.em.push({ key, name: ch.name })
-    }
-    assigned.add(key)
+function classifyChannels(composite: Record<string, unknown>): CompositeChannels {
+  const result: CompositeChannels = { em: [], dominantA: [], dominantB: [], compromise: [], friendship: [] }
+  const map = (composite.channel_dominance_map ?? []) as Array<{ channel: string; name: string; source: string }>
+  for (const ch of map) {
+    const entry = { key: ch.channel, name: ch.name }
+    if (ch.source === 'electromagnetic') result.em.push(entry)
+    else if (ch.source === 'person1')    result.dominantA.push(entry)
+    else if (ch.source === 'person2')    result.dominantB.push(entry)
+    else if (ch.source === 'shared')     result.compromise.push(entry)
   }
 
   // Friendship: shared gate activations where no channel is fully complete in either person
-  const sharedGates = new Set([...gatesA].filter(g => gatesB.has(g)))
-  const friendshipSeen = new Set<string>()
-
+  const classified  = new Set(map.map(c => c.channel))
+  const sharedGates = new Set((composite.shared_gates ?? []) as number[])
   for (const ch of CHANNEL_PAIRS) {
     const key = `${ch.a}-${ch.b}`
-    // Skip channels already classified (EM, dominant, compromise)
-    const isAssignedFull =
-      result.em.some(e => e.key === key) ||
-      result.dominantA.some(e => e.key === key) ||
-      result.dominantB.some(e => e.key === key) ||
-      result.compromise.some(e => e.key === key)
-    if (isAssignedFull) continue
-    if (!friendshipSeen.has(key) && (sharedGates.has(ch.a) || sharedGates.has(ch.b))) {
-      const sharedGate = sharedGates.has(ch.a) ? ch.a : ch.b
-      result.friendship.push({ key, name: ch.name, sharedGate })
-      friendshipSeen.add(key)
+    if (classified.has(key)) continue
+    if (sharedGates.has(ch.a) || sharedGates.has(ch.b)) {
+      result.friendship.push({ key, name: ch.name, sharedGate: sharedGates.has(ch.a) ? ch.a : ch.b })
     }
   }
-
   return result
 }
 
 // ─── Layer 1 — Composite HD payload builder ───────────────────────────────────
 //
-// Sends only HD data + birth context for both persons.
-// Natal astrology data is excluded — prevents Jyotish contamination of HD sections.
+// Sends only HD data + birth context for both persons, plus the calculated
+// composite. Natal astrology data is excluded — prevents Jyotish contamination
+// of HD sections. karmic_axis_overlay carries degree aspects and Saturn sign
+// lords (Jyotish); those fields are removed, its gate-level signals kept.
 
-function buildCompositeHDPayload(chartJsonA: unknown, chartJsonB: unknown): unknown {
+function buildCompositeHDPayload(chartJsonA: unknown, chartJsonB: unknown, composite: Record<string, unknown>): Record<string, unknown> {
   const a = chartJsonA as Record<string, unknown>
   const b = chartJsonB as Record<string, unknown>
+  const calc = JSON.parse(JSON.stringify(composite)) as Record<string, unknown>
+  const kax  = calc.karmic_axis_overlay as Record<string, unknown> | undefined
+  if (kax) {
+    delete kax.karmic_planet_aspects
+    const dyn = kax.saturn_karmic_dynamic as Record<string, unknown> | undefined
+    if (dyn) {
+      for (const k of ['person_a_saturn_sign', 'person_a_saturn_sign_lord',
+                       'person_b_saturn_sign', 'person_b_saturn_sign_lord', 'naisargika_relationship']) delete dyn[k]
+    }
+  }
   return {
-    person_a: { hd: a.hd, birth: a.birth },
-    person_b: { hd: b.hd, birth: b.birth },
+    person_a:  { hd: a.hd, birth: a.birth },
+    person_b:  { hd: b.hd, birth: b.birth },
+    composite: calc,
   }
 }
 
@@ -258,6 +230,7 @@ function buildCompositeUserMessage(
     disciplineDeclaration +
     `Here is the complete composite chart data:\n\n${payloadStr}\n\n` +
     `Interpret ${sectionName}. ` +
+    `The calculated composite and compatibility signals for the pair are in composite. ` +
     `Speak directly to Person A in second person. ` +
     `Reference Person B by name if a name is available in the birth data, otherwise as your partner. ` +
     `Do not reference mechanics or data that belong to other sections. ` +
@@ -268,464 +241,219 @@ function buildCompositeUserMessage(
   )
 }
 
+// ─── Channel section prompts (wording unchanged) ─────────────────────────────
+
+function emName(ch: ChannelEntry): string {
+  const name =
+    `Channel ${ch.key} — ${ch.name} — as an electromagnetic channel in this composite. ` +
+    'Person A provides one gate, Person B provides the other, together completing this channel. ' +
+    'Interpret: which gate each person carries, the electromagnetic attraction this creates, ' +
+    'how this channel energy is experienced differently by each person, ' +
+    'the consistent frequency it generates in the relationship field, ' +
+    'and the not-self distortion if either person tries to own or control this energy'
+  return name
+}
+
+function dominantName(ch: ChannelEntry & { person: 'A' | 'B' }): string {
+  const who  = ch.person === 'A' ? 'Person A' : 'Person B'
+  const name =
+    `Channel ${ch.key} — ${ch.name} — as ${who}'s dominant channel in this composite. ` +
+    `${who} carries this channel completely. The other person does not. ` +
+    'Interpret: what consistent energy this channel brings from ' + who + ' into the relationship, ' +
+    'how the other person experiences being in the field of this channel without carrying it themselves, ' +
+    'whether this creates empowerment, conditioning, or both for the non-carrier, ' +
+    'and what correct relationship to this energy looks like for each person'
+  return name
+}
+
+function compromiseName(ch: ChannelEntry): string {
+  const name =
+    `Channel ${ch.key} — ${ch.name} — as a compromise channel in this composite. ` +
+    'Both Person A and Person B carry this channel completely in their individual charts. ' +
+    'Interpret: the resonance and recognition this creates when both people bring the same full channel energy, ' +
+    'the amplification effect of the doubled definition, ' +
+    'the specific friction patterns that arise when two people both own this channel and compete in its domain, ' +
+    'and what healthy co-expression of this shared energy looks like'
+  return name
+}
+
+function friendshipName(ch: FriendshipEntry): string {
+  const name =
+    `Channel ${ch.key} — ${ch.name} — as a friendship channel in this composite. ` +
+    `Both Person A and Person B activate Gate ${ch.sharedGate} of this channel, ` +
+    'but neither person completes the full channel. The other gate is inactive in both charts. ' +
+    'Interpret: what the shared Gate ' + ch.sharedGate + ' activation creates as a frequency of recognition between them, ' +
+    'how this shared gate creates a sense of deep familiarity or understanding without the full channel pressure, ' +
+    'and what the incomplete channel means for how this domain of life operates in the relationship'
+  return name
+}
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
-export async function POST(request: NextRequest) {
+// Per-channel sections are stored as JSONB maps keyed by channel ("27-50");
+// the stream reports them as colKeys ("em_27_50").
+const CHANNEL_GROUPS = [
+  { prefix: 'em',         column: 'composite_em_channels',         wordCap: 800, maxTokens: 4096 },
+  { prefix: 'dominant',   column: 'composite_dominant_channels',   wordCap: 600, maxTokens: 4096 },
+  { prefix: 'compromise', column: 'composite_compromise_channels', wordCap: 500, maxTokens: 4096 },
+  { prefix: 'friendship', column: 'composite_friendship_channels', wordCap: 500, maxTokens: 2048 },
+] as const
+
+type Group = typeof CHANNEL_GROUPS[number]
+
+interface ChannelJob { group: Group; key: string; name: string; label: string }
+
+function channelJobs(channels: CompositeChannels): Map<string, ChannelJob> {
+  const [em, dominant, compromise, friendship] = CHANNEL_GROUPS
+  const jobs = new Map<string, ChannelJob>()
+  const add = (group: Group, ch: ChannelEntry, name: string, kind: string) =>
+    jobs.set(`${group.prefix}_${ch.key.replace('-', '_')}`, { group, key: ch.key, name, label: `${kind} · ${ch.key} ${ch.name}` })
+  for (const ch of channels.em)         add(em, ch, emName(ch), 'Electromagnetic')
+  for (const ch of channels.dominantA)  add(dominant, ch, dominantName({ ...ch, person: 'A' }), 'Dominant (Person A)')
+  for (const ch of channels.dominantB)  add(dominant, ch, dominantName({ ...ch, person: 'B' }), 'Dominant (Person B)')
+  for (const ch of channels.compromise) add(compromise, ch, compromiseName(ch), 'Compromise')
+  for (const ch of channels.friendship) add(friendship, ch, friendshipName(ch), 'Friendship')
+  return jobs
+}
+
+async function resolve(): Promise<Response | {
+  self: Record<string, unknown>; partner: Record<string, unknown>
+  birthA: Record<string, number>; birthB: Record<string, number>
+}> {
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  if (!user) return jsonError('Unauthorized', 401)
+  if (!(await hasEntitlement(supabase, user.id, ['hd_composite_report']))) return jsonError('Not purchased', 403)
+  const pair = await loadOwnedPair(supabase, user.id)
+  if (pair instanceof Response) return pair
+  const birthA = birthFromChartJson(pair.self.chart_json)
+  const birthB = birthFromChartJson(pair.partner.chart_json)
+  if (!birthA || !birthB) return jsonError('Chart has no usable birth data', 422)
+  return { ...pair, birthA, birthB }
+}
+
+interface Plan {
+  composite: Record<string, unknown>
+  channels:  CompositeChannels
+  jobs:      Map<string, ChannelJob>
+  offered:   string[]
+}
+
+// The channel sections offered depend on the calculated composite, so it is
+// computed before anything is generated.
+async function plan(birthA: Record<string, number>, birthB: Record<string, number>): Promise<Plan | Response> {
+  let composite: Record<string, unknown>
+  try {
+    composite = await fetchCalculation('/hd/composite', { person1: birthA, person2: birthB })
+  } catch (err) {
+    const f = err instanceof InterpretFailure ? err : null
+    return jsonError(f?.message ?? 'Composite calculation failed', f?.status ?? 502)
   }
+  const channels = classifyChannels(composite)
+  const jobs     = channelJobs(channels)
+  return { composite, channels, jobs, offered: [...COMPOSITE_FIXED_SECTIONS.map(s => s.column), ...jobs.keys()] }
+}
 
-  const body = await request.json()
-  const { chart_id_a, chart_id_b, tier, skip_columns, intake_json } = body as {
-    chart_id_a:    string
-    chart_id_b:    string
-    tier:          number
-    skip_columns?: string[]
-    intake_json?:  Record<string, string> | null
-  }
+function storedText(row: Record<string, unknown> | null, jobs: Map<string, ChannelJob>, column: string): unknown {
+  const job = jobs.get(column)
+  if (!job) return row?.[column]
+  return (row?.[job.group.column] as Record<string, unknown> | null | undefined)?.[job.key]
+}
 
-  if (!chart_id_a || !chart_id_b) {
-    return new Response(JSON.stringify({ error: 'chart_id_a and chart_id_b are required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
+// Returns the caller's stored composite row, the channel sections this pair is
+// offered, and which sections are still missing (RLS keeps pair rows server-side).
+export async function GET() {
+  const ctx = await resolve()
+  if (ctx instanceof Response) return ctx
+  const { data } = await createAdminClient()
+    .from(TABLE).select('*').eq('chart_id_a', String(ctx.self.id)).eq('chart_id_b', String(ctx.partner.id)).maybeSingle()
+  const row = (data as Record<string, unknown> | null) ?? null
+  const p   = await plan(ctx.birthA, ctx.birthB)
+  if (p instanceof Response) return Response.json({ row, channels: [], pending: null })
+  return Response.json({
+    row,
+    channels: [...p.jobs.entries()].map(([column, j]) => ({ column, map: j.group.column, key: j.key, label: j.label })),
+    pending:  p.offered.filter(c => isMissing(storedText(row, p.jobs, c))),
+  })
+}
 
-  const skipSet       = new Set(Array.isArray(skip_columns) ? skip_columns : [])
-  const adminSupabase = createAdminClient()
+export async function POST(request: NextRequest) {
+  const ctx = await resolve()
+  if (ctx instanceof Response) return ctx
+  const { self, partner, birthA, birthB } = ctx
 
-  // Load both charts by ID — not session-restricted; any authenticated user can run composite
-  const [{ data: chartA, error: errA }, { data: chartB, error: errB }] = await Promise.all([
-    adminSupabase.from('charts').select('chart_json').eq('id', chart_id_a).single(),
-    adminSupabase.from('charts').select('chart_json').eq('id', chart_id_b).single(),
-  ])
+  const body  = await request.json().catch(() => ({})) as { columns?: unknown }
+  const asked = Array.isArray(body.columns) ? new Set(body.columns.map(String)) : null
+  const intake = (self.intake_relational as Record<string, unknown> | null) ?? null
 
-  if (errA || errB || !chartA?.chart_json || !chartB?.chart_json) {
-    return new Response(JSON.stringify({ error: 'One or both charts not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
+  const p = await plan(birthA, birthB)
+  if (p instanceof Response) return p
+  const { composite, channels, jobs, offered } = p
 
-  // Upsert composite row for this ordered pair (A→B is directional)
-  const { data: existing } = await adminSupabase
-    .from('hd_composite_interpretations')
-    .select('id')
-    .eq('chart_id_a', chart_id_a)
-    .eq('chart_id_b', chart_id_b)
-    .maybeSingle()
+  const admin = createAdminClient()
+  const row   = await findOrCreatePairRow(admin, TABLE, String(self.id), String(partner.id))
 
-  let compositeId: string
+  // Stored maps are seeded from the row so a partial run never drops earlier channels.
+  const maps = new Map(CHANNEL_GROUPS.map(g => [g.column, { ...((row[g.column] as Record<string, string> | null) ?? {}) }]))
 
-  if (existing) {
-    compositeId = existing.id
-  } else {
-    const { data: inserted, error: insertError } = await adminSupabase
-      .from('hd_composite_interpretations')
-      .insert({ chart_id_a, chart_id_b })
-      .select('id')
-      .single()
-
-    if (insertError || !inserted) {
-      console.error('[interpret-composite] failed to create composite record:', insertError)
-      return new Response(JSON.stringify({ error: 'Failed to create composite record' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    compositeId = inserted.id
-  }
-
-  // Compute composite channels from both charts' gate data
-  const hdA    = (chartA.chart_json as Record<string, unknown>)?.hd
-  const hdB    = (chartB.chart_json as Record<string, unknown>)?.hd
-  const gatesA = extractGateNumbers(hdA)
-  const gatesB = extractGateNumbers(hdB)
-  const channels = computeCompositeChannels(gatesA, gatesB)
+  const missing = offered.filter(c => isMissing(storedText(row, jobs, c)) && (!asked || asked.has(c)))
+  const skipped = offered.filter(c => !missing.includes(c))
+  const fixedByColumn = new Map(COMPOSITE_FIXED_SECTIONS.map(s => [s.column, s]))
 
   console.log(
     `[interpret-composite] channels — EM:${channels.em.length} domA:${channels.dominantA.length} ` +
-    `domB:${channels.dominantB.length} comp:${channels.compromise.length} ` +
-    `friend:${channels.friendship.length} | ${chart_id_a}×${chart_id_b}`
+    `domB:${channels.dominantB.length} comp:${channels.compromise.length} friend:${channels.friendship.length}`
   )
 
-  // Fetch governing documents + domain conclusions in parallel
-  const birthPayload = extractBirthPayload(chartA.chart_json)
-  const [systemDoc, coreDoc, domainConclusions] = await Promise.all([
-    fetch(HD_DOC_URLS.system).then(r => r.text()),
-    fetch(HD_DOC_URLS.core).then(r => r.text()),
-    birthPayload
-      ? fetchDomainConclusions(birthPayload, 'relational', intake_json ?? null)
-      : Promise.resolve(null),
-  ])
-
-  // Configure system doc placeholders
-  let systemDoc_configured = systemDoc
-  systemDoc_configured = systemDoc_configured.replace('[TIER_1 / TIER_2 / TIER_3]', `TIER_${tier}`)
-  systemDoc_configured = systemDoc_configured.replace('[USER_NAME]', user.email ?? 'User')
-  systemDoc_configured = systemDoc_configured.replace('[TRUE / FALSE]', 'FALSE')
-  systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON[^\]]*\]/g, 'Provided in the conversation turn.')
-  systemDoc_configured = systemDoc_configured.replace(
-    /\[INTAKE_JSON[^\]]*\]/g,
-    intake_json ? JSON.stringify(intake_json, null, 2) : 'Not provided'
-  )
-  systemDoc_configured = systemDoc_configured.replace(
-    /\[DOMAIN_CONCLUSIONS_JSON[^\]]*\]/g,
-    buildDomainContextBlock(domainConclusions)
-  )
-  systemDoc_configured = systemDoc_configured.replace(/\[CHART_JSON_B[^\]]*\]/g, 'Provided in the conversation turn.')
-
-  // Layer 2 — HD composite system prompt:
-  //   CLAUDE_SYSTEM.md + CLAUDE_CORE_COMPOSITE.md (self-contained, no ASTRO doc)
-  const compositeSystemPrompt = [
-    systemDoc_configured,
-    '\n\n---\n\n',
-    coreDoc,
-  ].join('')
-
-  console.log(
-    `[interpret-composite] system prompt assembled — ${compositeSystemPrompt.length} chars | ` +
-    `${COMPOSITE_FIXED_SECTIONS.length} fixed sections`
-  )
-
-  // Layer 1 — Strip astrology data from composite payload
-  const payload    = buildCompositeHDPayload(chartA.chart_json, chartB.chart_json)
-  const payloadStr = JSON.stringify(payload, null, 2)
+  // Assembled once, on first pending section. Any failure fails every section.
+  let context: Promise<{ system: string; payloadStr: string }> | null = null
+  const getContext = () => context ??= (async () => {
+    const conclusionBirth = extractBirthPayload(self.chart_json)
+    const [systemDoc, familyDoc, coreDoc, conclusions] = await Promise.all([
+      fetchGoverningDoc('CLAUDE_SYSTEM.md'),
+      fetchGoverningDoc('CLAUDE_HD_COMPOSITE.md'),
+      fetchGoverningDoc('CLAUDE_CORE_COMPOSITE.md'),
+      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake) : Promise.resolve(null),
+    ])
+    const configured = configureSystemDoc(systemDoc, {
+      product:       'hd_composite',
+      personA:       'person_a',
+      personB:       'person_b',
+      intake:        !!intake,
+      conclusions:   !!conclusions,
+      classicalOnly: false,
+    })
+    const payload = buildCompositeHDPayload(self.chart_json, partner.chart_json, composite)
+    if (intake)      payload.intake = intake
+    if (conclusions) payload.domain_conclusions = conclusions
+    return {
+      system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc,
+      payloadStr: JSON.stringify(payload, null, 2),
+    }
+  })()
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const encoder   = new TextEncoder()
+  const rowId     = String(row.id)
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      function send(payload: object) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
-      }
-
-      const completed:          string[]              = []
-      const emResults:          Map<string, string>   = new Map()
-      const dominantResults:    Map<string, string>   = new Map()
-      const compromiseResults:  Map<string, string>   = new Map()
-      const friendshipResults:  Map<string, string>   = new Map()
-
-      // ─── Fixed sections ───────────────────────────────────────────────
-      for (const section of COMPOSITE_FIXED_SECTIONS) {
-        if (skipSet.has(section.column)) continue
-        console.log(`[interpret-composite] generating ${section.column}`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  4096,
-            temperature: 0.3,
-            system:      compositeSystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildCompositeUserMessage(section.name, payloadStr, section.wordCap),
-            }],
-          })
-
-          const raw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(raw, anthropic, section.column)
-
-          if (compositeId && text) {
-            const { error: dbError } = await adminSupabase
-              .from('hd_composite_interpretations')
-              .update({ [section.column]: text, updated_at: new Date().toISOString() })
-              .eq('id', compositeId)
-            if (dbError) console.error(`[interpret-composite] db write failed for ${section.column}:`, dbError)
-          }
-
-          completed.push(section.column)
-          console.log(`[interpret-composite] ${section.column} done — ${text.length} chars`)
-          send({ column: section.column, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-composite] ${section.column} failed:`, err)
-          send({ column: section.column, status: 'error', error: String(err) })
-        }
-      }
-
-      // ─── EM channel sections ──────────────────────────────────────────
-      for (const ch of channels.em) {
-        const colKey = `em_${ch.key.replace('-', '_')}`
-        if (skipSet.has(colKey)) continue
-
-        const name =
-          `Channel ${ch.key} — ${ch.name} — as an electromagnetic channel in this composite. ` +
-          'Person A provides one gate, Person B provides the other, together completing this channel. ' +
-          'Interpret: which gate each person carries, the electromagnetic attraction this creates, ' +
-          'how this channel energy is experienced differently by each person, ' +
-          'the consistent frequency it generates in the relationship field, ' +
-          'and the not-self distortion if either person tries to own or control this energy'
-
-        console.log(`[interpret-composite] generating EM channel ${ch.key}`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  4096,
-            temperature: 0.3,
-            system:      compositeSystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildCompositeUserMessage(name, payloadStr, 800),
-            }],
-          })
-
-          const emRaw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(emRaw, anthropic, colKey)
-
-          if (text) {
-            emResults.set(ch.key, text)
-            if (compositeId) {
-              const { error: dbError } = await adminSupabase
-                .from('hd_composite_interpretations')
-                .update({
-                  composite_em_channels: Object.fromEntries(emResults),
-                  updated_at:            new Date().toISOString(),
-                })
-                .eq('id', compositeId)
-              if (dbError) console.error(`[interpret-composite] db write failed for EM ${ch.key}:`, dbError)
-            }
-          }
-
-          completed.push(colKey)
-          console.log(`[interpret-composite] EM ${ch.key} done — ${text.length} chars`)
-          send({ column: colKey, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-composite] EM ${ch.key} failed:`, err)
-          send({ column: colKey, status: 'error', error: String(err) })
-        }
-      }
-
-      // ─── Dominant channel sections (A and B combined into one JSONB column) ─
-      const allDominant = [
-        ...channels.dominantA.map(ch => ({ ...ch, person: 'A' as const })),
-        ...channels.dominantB.map(ch => ({ ...ch, person: 'B' as const })),
-      ]
-
-      for (const ch of allDominant) {
-        const colKey = `dominant_${ch.key.replace('-', '_')}`
-        if (skipSet.has(colKey)) continue
-
-        const who  = ch.person === 'A' ? 'Person A' : 'Person B'
-        const name =
-          `Channel ${ch.key} — ${ch.name} — as ${who}'s dominant channel in this composite. ` +
-          `${who} carries this channel completely. The other person does not. ` +
-          'Interpret: what consistent energy this channel brings from ' + who + ' into the relationship, ' +
-          'how the other person experiences being in the field of this channel without carrying it themselves, ' +
-          'whether this creates empowerment, conditioning, or both for the non-carrier, ' +
-          'and what correct relationship to this energy looks like for each person'
-
-        console.log(`[interpret-composite] generating dominant channel ${ch.key} (${who})`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  4096,
-            temperature: 0.3,
-            system:      compositeSystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildCompositeUserMessage(name, payloadStr, 600),
-            }],
-          })
-
-          const domRaw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(domRaw, anthropic, colKey)
-
-          if (text) {
-            dominantResults.set(ch.key, text)
-            if (compositeId) {
-              const { error: dbError } = await adminSupabase
-                .from('hd_composite_interpretations')
-                .update({
-                  composite_dominant_channels: Object.fromEntries(dominantResults),
-                  updated_at:                  new Date().toISOString(),
-                })
-                .eq('id', compositeId)
-              if (dbError) console.error(`[interpret-composite] db write failed for dominant ${ch.key}:`, dbError)
-            }
-          }
-
-          completed.push(colKey)
-          console.log(`[interpret-composite] dominant ${ch.key} done — ${text.length} chars`)
-          send({ column: colKey, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-composite] dominant ${ch.key} failed:`, err)
-          send({ column: colKey, status: 'error', error: String(err) })
-        }
-      }
-
-      // ─── Compromise channel sections ─────────────────────────────────
-      for (const ch of channels.compromise) {
-        const colKey = `compromise_${ch.key.replace('-', '_')}`
-        if (skipSet.has(colKey)) continue
-
-        const name =
-          `Channel ${ch.key} — ${ch.name} — as a compromise channel in this composite. ` +
-          'Both Person A and Person B carry this channel completely in their individual charts. ' +
-          'Interpret: the resonance and recognition this creates when both people bring the same full channel energy, ' +
-          'the amplification effect of the doubled definition, ' +
-          'the specific friction patterns that arise when two people both own this channel and compete in its domain, ' +
-          'and what healthy co-expression of this shared energy looks like'
-
-        console.log(`[interpret-composite] generating compromise channel ${ch.key}`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  4096,
-            temperature: 0.3,
-            system:      compositeSystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildCompositeUserMessage(name, payloadStr, 500),
-            }],
-          })
-
-          const compRaw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(compRaw, anthropic, colKey)
-
-          if (text) {
-            compromiseResults.set(ch.key, text)
-            if (compositeId) {
-              const { error: dbError } = await adminSupabase
-                .from('hd_composite_interpretations')
-                .update({
-                  composite_compromise_channels: Object.fromEntries(compromiseResults),
-                  updated_at:                    new Date().toISOString(),
-                })
-                .eq('id', compositeId)
-              if (dbError) console.error(`[interpret-composite] db write failed for compromise ${ch.key}:`, dbError)
-            }
-          }
-
-          completed.push(colKey)
-          console.log(`[interpret-composite] compromise ${ch.key} done — ${text.length} chars`)
-          send({ column: colKey, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-composite] compromise ${ch.key} failed:`, err)
-          send({ column: colKey, status: 'error', error: String(err) })
-        }
-      }
-
-      // ─── Friendship channel sections ──────────────────────────────────
-      // Friendship: both persons share the same gate, but neither completes the full channel.
-      // The shared gate creates a frequency of recognition without the full channel pressure.
-      for (const ch of channels.friendship) {
-        const colKey = `friendship_${ch.key.replace('-', '_')}`
-        if (skipSet.has(colKey)) continue
-
-        const name =
-          `Channel ${ch.key} — ${ch.name} — as a friendship channel in this composite. ` +
-          `Both Person A and Person B activate Gate ${ch.sharedGate} of this channel, ` +
-          'but neither person completes the full channel. The other gate is inactive in both charts. ' +
-          'Interpret: what the shared Gate ' + ch.sharedGate + ' activation creates as a frequency of recognition between them, ' +
-          'how this shared gate creates a sense of deep familiarity or understanding without the full channel pressure, ' +
-          'and what the incomplete channel means for how this domain of life operates in the relationship'
-
-        console.log(`[interpret-composite] generating friendship channel ${ch.key} (gate ${ch.sharedGate})`)
-
-        try {
-          const message = await anthropic.messages.create({
-            model:       'claude-sonnet-4-6',
-            max_tokens:  2048,
-            temperature: 0.3,
-            system:      compositeSystemPrompt,
-            messages: [{
-              role:    'user',
-              content: buildCompositeUserMessage(name, payloadStr, 500),
-            }],
-          })
-
-          const friendRaw = message.content
-            .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-            .map(b => b.text)
-            .join('')
-
-          const text = await postProcess(friendRaw, anthropic, colKey)
-
-          if (text) {
-            friendshipResults.set(ch.key, text)
-            if (compositeId) {
-              const { error: dbError } = await adminSupabase
-                .from('hd_composite_interpretations')
-                .update({
-                  composite_friendship_channels: Object.fromEntries(friendshipResults),
-                  updated_at:                    new Date().toISOString(),
-                })
-                .eq('id', compositeId)
-              if (dbError) console.error(`[interpret-composite] db write failed for friendship ${ch.key}:`, dbError)
-            }
-          }
-
-          completed.push(colKey)
-          console.log(`[interpret-composite] friendship ${ch.key} done — ${text.length} chars`)
-          send({ column: colKey, status: 'done', chars: text.length })
-
-        } catch (err) {
-          console.error(`[interpret-composite] friendship ${ch.key} failed:`, err)
-          send({ column: colKey, status: 'error', error: String(err) })
-        }
-      }
-
-      const totalSections =
-        COMPOSITE_FIXED_SECTIONS.length +
-        channels.em.length +
-        allDominant.length +
-        channels.compromise.length +
-        channels.friendship.length
-
-      send({
-        done:         true,
-        composite_id: compositeId,
-        completed,
-        total:        totalSections,
-        channels: {
-          em:         channels.em.map(c => c.key),
-          dominant_a: channels.dominantA.map(c => c.key),
-          dominant_b: channels.dominantB.map(c => c.key),
-          compromise: channels.compromise.map(c => c.key),
-          friendship: channels.friendship.map(c => c.key),
-        },
-        skipped: Array.from(skipSet),
+  return sectionStream('interpret-composite', missing, skipped, async column => {
+    const c     = await getContext()
+    const fixed = fixedByColumn.get(column)
+    if (fixed) {
+      const result = await generateDirect({
+        anthropic, system: c.system, section: column,
+        user: buildCompositeUserMessage(fixed.name, c.payloadStr, fixed.wordCap),
       })
-      controller.close()
-    },
-  })
-
-  return new Response(readable, {
-    headers: {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
-    },
+      await writeRow(admin, TABLE, rowId, { [column]: result.text })
+      return result
+    }
+    const job    = jobs.get(column)!
+    const result = await generateDirect({
+      anthropic, system: c.system, section: column, maxTokens: job.group.maxTokens,
+      user: buildCompositeUserMessage(job.name, c.payloadStr, job.group.wordCap),
+    })
+    const map = maps.get(job.group.column)!
+    map[job.key] = result.text
+    await writeRow(admin, TABLE, rowId, { [job.group.column]: map })
+    return result
   })
 }

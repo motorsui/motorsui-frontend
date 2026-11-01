@@ -19,12 +19,12 @@ RELATIONAL_SECTIONS.forEach(section => {
 
 // ─── Autosave ─────────────────────────────────────────────────────────────────
 
-async function partnerSave(partnerChartId: string, answers: Record<string, string>) {
+async function partnerSave(partnerChartId: string, answers: Record<string, string>, complete = false) {
   try {
     await fetch('/api/save-partner-intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partner_chart_id: partnerChartId, answers }),
+      body: JSON.stringify({ partner_chart_id: partnerChartId, answers, complete }),
     })
   } catch { /* silent */ }
 }
@@ -351,7 +351,7 @@ export default function PartnerIntakeForm({ partnerChartId }: PartnerIntakeFormP
 
     const q = currentQuestion()
     if (q) {
-      await partnerSave(partnerChartId, answers)
+      await partnerSave(partnerChartId, answers, step === total)
     }
 
     if (step === total) {

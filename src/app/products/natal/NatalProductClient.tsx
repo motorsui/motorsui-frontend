@@ -6,23 +6,9 @@ import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
 import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
+import { NATAL_COLUMNS, isMissing } from '@/lib/interpret/sections'
 
-// Natal-only columns. D-chart columns are a separate product — always skip them here.
-const NATAL_COLUMNS = [
-  'interp_lagna',
-  'interp_sun', 'interp_moon', 'interp_mercury', 'interp_venus',
-  'interp_mars', 'interp_jupiter', 'interp_saturn',
-  'interp_uranus', 'interp_neptune', 'interp_pluto',
-  'interp_rahu', 'interp_ketu',
-  'interp_dignities', 'interp_mahadasha', 'interp_purusharthas',
-]
 
-const DCHART_COLUMNS = [
-  'interp_d2', 'interp_d3', 'interp_d4', 'interp_d5', 'interp_d6',
-  'interp_d7', 'interp_d8', 'interp_d9', 'interp_d10', 'interp_d11',
-  'interp_d12', 'interp_d16', 'interp_d20', 'interp_d24', 'interp_d27',
-  'interp_d30', 'interp_d40', 'interp_d45', 'interp_d60',
-]
 
 interface NatalProductClientProps {
   chart:      Record<string, unknown>
@@ -109,33 +95,16 @@ export default function NatalProductClient({ chart: initialChart, tier, hasIntak
   useEffect(() => {
     if (!intakeComplete) return
 
-    const chartJson = chart.chart_json ?? initialChart.chart_json
-
-    const missing = NATAL_COLUMNS.filter(col => {
-      const v = chart[col]
-      return !v || typeof v !== 'string' || v.trim() === ''
-    })
+    const missing = NATAL_COLUMNS.filter(col => isMissing(chart[col]))
 
     if (missing.length === 0) return
 
-    // Skip natal columns already filled + all D-chart columns (separate product)
-    const skipColumns = [
-      ...NATAL_COLUMNS.filter(c => !missing.includes(c)),
-      ...DCHART_COLUMNS,
-    ]
-    const intakeData  = (chart.intake_self ?? initialChart.intake_self) as Record<string, string> | null
 
     setGenerating(true)
     setTotal(missing.length)
     setDone(0)
 
-    const body = JSON.stringify({
-      chart_json:   chartJson,
-      tier,
-      chart_id:     chartIdRef.current,
-      skip_columns: skipColumns,
-      intake_json:  intakeData ?? null,
-    })
+    const body = JSON.stringify({ chart_id: chartIdRef.current, product: 'natal' })
 
     let cancelled      = false
     let completedCount = 0

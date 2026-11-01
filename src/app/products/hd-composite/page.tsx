@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import HdCompositeProductClient from './HdCompositeProductClient'
 
 export default async function HdCompositeProductPage() {
@@ -30,6 +30,9 @@ export default async function HdCompositeProductPage() {
   const tier = profile?.tier ?? 1
   const hasIntake = chart.intake_relational_complete === true
 
+  // Pair rows have no RLS select policy; they are read server-side, keyed by the
+  // caller's own chart ids.
+  const admin = createAdminClient()
   let partnerChart = null
   let compositeRow = null
 
@@ -37,14 +40,14 @@ export default async function HdCompositeProductPage() {
     const { data: pc } = await supabase.from('charts').select('*').eq('id', chart.partner_chart_id as string).maybeSingle()
     partnerChart = pc
     if (pc) {
-      const { data: cr } = await supabase.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
+      const { data: cr } = await admin.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
       compositeRow = cr
     }
   } else if (hasIntake) {
     const { data: pc } = await supabase.from('charts').select('*').eq('user_id', user.id).eq('chart_label', 'partner').maybeSingle()
     if (pc) {
       partnerChart = pc
-      const { data: cr } = await supabase.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
+      const { data: cr } = await admin.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
       compositeRow = cr
     }
   }

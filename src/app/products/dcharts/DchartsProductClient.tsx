@@ -6,20 +6,9 @@ import ChartDisplay from '@/components/chart/ChartDisplay'
 import Header from '@/components/layout/Header'
 import SelfIntakeForm from '@/components/intake/SelfIntakeForm'
 import type { ChartMode } from '@/components/chart/ChartDisplay'
+import { DCHART_COLUMNS, isMissing } from '@/lib/interpret/sections'
 
-const DCHART_COLUMNS = [
-  'interp_d2', 'interp_d3', 'interp_d4', 'interp_d5', 'interp_d6',
-  'interp_d7', 'interp_d8', 'interp_d9', 'interp_d10', 'interp_d11',
-  'interp_d12', 'interp_d16', 'interp_d20', 'interp_d24', 'interp_d27',
-  'interp_d30', 'interp_d40', 'interp_d45', 'interp_d60',
-]
 
-// Always skip natal columns (separate product) when calling /api/interpret
-const NATAL_COLUMNS = [
-  'interp_lagna', 'interp_sun', 'interp_moon', 'interp_mercury', 'interp_venus',
-  'interp_mars', 'interp_jupiter', 'interp_saturn', 'interp_uranus', 'interp_neptune',
-  'interp_pluto', 'interp_rahu', 'interp_ketu', 'interp_dignities', 'interp_mahadasha', 'interp_purusharthas',
-]
 
 interface DchartsProductClientProps {
   chart:     Record<string, unknown>
@@ -59,29 +48,15 @@ export default function DchartsProductClient({ chart: initialChart, tier, hasInt
   useEffect(() => {
     if (!intakeComplete) return
 
-    const missing = DCHART_COLUMNS.filter(col => {
-      const v = chart[col]
-      return !v || typeof v !== 'string' || v.trim() === ''
-    })
+    const missing = DCHART_COLUMNS.filter(col => isMissing(chart[col]))
     if (missing.length === 0) return
 
-    const skipColumns = [
-      ...NATAL_COLUMNS,                                  // always skip natal (separate product)
-      ...DCHART_COLUMNS.filter(c => !missing.includes(c)), // skip d-chart cols already filled
-    ]
-    const intakeData = (chart.intake_self ?? initialChart.intake_self) as Record<string, string> | null
 
     setGenerating(true)
     setTotal(missing.length)
     setDone(0)
 
-    const body = JSON.stringify({
-      chart_json:   chart.chart_json ?? initialChart.chart_json,
-      tier,
-      chart_id:     chartIdRef.current,
-      skip_columns: skipColumns,
-      intake_json:  intakeData ?? null,
-    })
+    const body = JSON.stringify({ chart_id: chartIdRef.current, product: 'dcharts' })
 
     let cancelled = false, completedCount = 0
 
