@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { mintPartnerToken, partnerIntakePath } from '@/lib/partner-intake-token'
 
 // Returns the UTC offset in hours for a given birth time in an IANA timezone.
 function getUtcOffsetHours(
@@ -195,6 +196,27 @@ export async function POST(request: NextRequest) {
       partnerChartId = newId
     }
 
+    // Share-link token for the partner's own intake. A new submit replaces
+    // the stored hash, so only the newest link works. None once it is locked.
+    let partnerIntakePathValue: string | null = null
+    const { data: partnerRow } = await adminSupa
+      .from('charts')
+      .select('intake_relational_complete')
+      .eq('id', partnerChartId)
+      .maybeSingle()
+    if (partnerRow && partnerRow.intake_relational_complete !== true) {
+      const { token, hash, expiresAt } = mintPartnerToken()
+      const { error: tokenError } = await adminSupa
+        .from('charts')
+        .update({ partner_intake_token_hash: hash, partner_intake_token_expires_at: expiresAt })
+        .eq('id', partnerChartId)
+      if (tokenError) {
+        console.error('[save-intake] partner token update failed:', tokenError)
+        return NextResponse.json({ error: 'Failed to create partner link' }, { status: 500 })
+      }
+      partnerIntakePathValue = partnerIntakePath(partnerChartId, token)
+    }
+
     // Save intake + partner_chart_id to user's chart.
     // intake_relational_complete gates Products 5-6 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
@@ -207,7 +229,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save intake' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, partner_chart_id: partnerChartId })
+    return NextResponse.json({ success: true, partner_chart_id: partnerChartId, partner_intake_path: partnerIntakePathValue })
   }
 
   // ─── Parenting intake (Products 7-8) ─────────────────────────────────────

@@ -361,7 +361,7 @@ function QuestionField({
 interface RelationalIntakeFormProps {
   chartId: string
   initialAnswers?: Record<string, string>
-  onComplete: (partnerChartId: string) => Promise<void>
+  onComplete: (partnerChartId: string, partnerLink: string) => Promise<void>
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -428,13 +428,15 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
           const e = await res.json().catch(() => ({}))
           throw new Error((e as Record<string, string>).error ?? 'Submission failed')
         }
-        const data = await res.json() as { partner_chart_id?: string }
+        const data = await res.json() as { partner_chart_id?: string; partner_intake_path?: string | null }
         const pid = data.partner_chart_id ?? ''
         const origin = typeof window !== 'undefined' ? window.location.origin : ''
-        setPartnerLink(`${origin}/intake/partner?id=${pid}`)
+        // No path once the partner's intake is already submitted.
+        const link = data.partner_intake_path ? `${origin}${data.partner_intake_path}` : ''
+        setPartnerLink(link)
         setStep(43)
         scrollTop()
-        await onComplete(pid)
+        await onComplete(pid, link)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Submission failed. Please try again.')
       } finally {

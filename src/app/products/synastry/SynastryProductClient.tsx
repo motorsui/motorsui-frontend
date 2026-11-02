@@ -217,8 +217,8 @@ export default function SynastryProductClient({
       <RelationalIntakeForm
         chartId={String(initialChart.id ?? '')}
         initialAnswers={(initialChart.intake_relational as Record<string, string> | undefined) ?? undefined}
-        onComplete={async (partnerChartId) => {
-          setPartnerLink(`${typeof window !== 'undefined' ? window.location.origin : ''}/intake/partner?id=${partnerChartId}`)
+        onComplete={async (_partnerChartId, link) => {
+          setPartnerLink(link)
           await fetchPartnerChart()
           setIntakeComplete(true)
           setPhase('report')

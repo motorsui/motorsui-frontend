@@ -19,14 +19,21 @@ RELATIONAL_SECTIONS.forEach(section => {
 
 // ─── Autosave ─────────────────────────────────────────────────────────────────
 
-async function partnerSave(partnerChartId: string, answers: Record<string, string>, complete = false) {
+type SaveResult = 'ok' | 'rejected' | 'failed'
+
+// Answers save after every question. A 403/409 means the link is invalid,
+// expired or already used, so the form stops. Other failures are retried by
+// the next save, except on the final submit, which must succeed.
+async function partnerSave(partnerChartId: string, token: string, answers: Record<string, string>, complete = false): Promise<SaveResult> {
   try {
-    await fetch('/api/save-partner-intake', {
+    const res = await fetch('/api/save-partner-intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partner_chart_id: partnerChartId, answers, complete }),
+      body: JSON.stringify({ partner_chart_id: partnerChartId, token, answers, complete }),
     })
-  } catch { /* silent */ }
+    if (res.ok) return 'ok'
+    return res.status === 403 || res.status === 409 ? 'rejected' : 'failed'
+  } catch { return 'failed' }
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -307,11 +314,12 @@ function QuestionField({
 
 interface PartnerIntakeFormProps {
   partnerChartId: string
+  token:          string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PartnerIntakeForm({ partnerChartId }: PartnerIntakeFormProps) {
+export default function PartnerIntakeForm({ partnerChartId, token }: PartnerIntakeFormProps) {
   // step -1 = intro, 1..42 = questions, 43 = confirmation
   const [step,    setStep]    = useState(-1)
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -351,7 +359,9 @@ export default function PartnerIntakeForm({ partnerChartId }: PartnerIntakeFormP
 
     const q = currentQuestion()
     if (q) {
-      await partnerSave(partnerChartId, answers, step === total)
+      const saved = await partnerSave(partnerChartId, token, answers, step === total)
+      if (saved === 'rejected') { setError('This link is invalid, has expired or has already been used. Ask your partner for a new link.'); return }
+      if (saved === 'failed' && step === total) { setError('Your answers could not be submitted. Please try again.'); return }
     }
 
     if (step === total) {
