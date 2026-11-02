@@ -337,6 +337,7 @@ export async function POST(request: NextRequest) {
       system:  ctx.system,
       user:    buildSynastryUserMessage(section, ctx.payloadStr),
       section: column,
+      product: 'synastry',
     })
     await writeRow(admin, TABLE, rowId, { [column]: result.text })
     return result

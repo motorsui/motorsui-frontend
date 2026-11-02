@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
       system:  ctx.system,
       user:    buildDchartUserMessage(dsec, dataStr),
       section: column,
+      product: 'dcharts',
     })
     await writeSection(admin, String(chart.id), column, result.text)
     return result

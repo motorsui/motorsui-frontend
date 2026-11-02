@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { extractBirthPayload, fetchDomainConclusions } from '@/lib/interpret/domain-conclusions'
+import { extractBirthPayload, fetchDomainConclusions, buildDomainContextBlock } from '@/lib/interpret/domain-conclusions'
 import {
   birthFromChartJson, configureSystemDoc, fetchCalculation, fetchGoverningDoc, findOrCreatePairRow,
   generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
@@ -184,6 +184,21 @@ function classifyChannels(composite: Record<string, unknown>): CompositeChannels
 // composite. Natal astrology data is excluded — prevents Jyotish contamination
 // of HD sections. karmic_axis_overlay carries degree aspects and Saturn sign
 // lords (Jyotish); those fields are removed, its gate-level signals kept.
+// Each person's HD chart also carries sidereal position fields per activation
+// and a Jyotish karmic profile under karmic_gate_overlay; CLAUDE_CORE_COMPOSITE.md
+// excludes both, and the Karmic Axis exception covers gate-level signals only.
+
+const JYOTISH_FIELDS = new Set(['sign', 'nakshatra', 'pada', 'planet_degree', 'jyotish_karmic_profile'])
+
+function stripJyotishFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripJyotishFields)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([k]) => !JYOTISH_FIELDS.has(k))
+      .map(([k, v]) => [k, stripJyotishFields(v)]))
+  }
+  return value
+}
 
 function buildCompositeHDPayload(chartJsonA: unknown, chartJsonB: unknown, composite: Record<string, unknown>): Record<string, unknown> {
   const a = chartJsonA as Record<string, unknown>
@@ -199,8 +214,8 @@ function buildCompositeHDPayload(chartJsonA: unknown, chartJsonB: unknown, compo
     }
   }
   return {
-    person_a:  { hd: a.hd, birth: a.birth },
-    person_b:  { hd: b.hd, birth: b.birth },
+    person_a:  { hd: stripJyotishFields(a.hd), birth: a.birth },
+    person_b:  { hd: stripJyotishFields(b.hd), birth: b.birth },
     composite: calc,
   }
 }
@@ -427,7 +442,10 @@ export async function POST(request: NextRequest) {
     })
     const payload = buildCompositeHDPayload(self.chart_json, partner.chart_json, composite)
     if (intake)      payload.intake = intake
-    if (conclusions) payload.domain_conclusions = conclusions
+    // Score summary only, as on main. The full conclusions object carries
+    // Jyotish evidence (headline signals, planets, houses, dignities) that
+    // CLAUDE_CORE_COMPOSITE.md excludes from this product.
+    if (conclusions) payload.domain_conclusions = buildDomainContextBlock(conclusions)
     return {
       system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc,
       payloadStr: JSON.stringify(payload, null, 2),
@@ -442,7 +460,7 @@ export async function POST(request: NextRequest) {
     const fixed = fixedByColumn.get(column)
     if (fixed) {
       const result = await generateDirect({
-        anthropic, system: c.system, section: column,
+        anthropic, system: c.system, section: column, product: 'composite',
         user: buildCompositeUserMessage(fixed.name, c.payloadStr, fixed.wordCap),
       })
       await writeRow(admin, TABLE, rowId, { [column]: result.text })
@@ -450,7 +468,7 @@ export async function POST(request: NextRequest) {
     }
     const job    = jobs.get(column)!
     const result = await generateDirect({
-      anthropic, system: c.system, section: column, maxTokens: job.group.maxTokens,
+      anthropic, system: c.system, section: column, product: 'composite', maxTokens: job.group.maxTokens,
       user: buildCompositeUserMessage(job.name, c.payloadStr, job.group.wordCap),
     })
     const map = maps.get(job.group.column)!

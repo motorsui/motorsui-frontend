@@ -64,11 +64,13 @@ export async function callBackendInterpret(
 
 // ─── Validation (same rule set as the backend applies before storage) ────────
 
-export async function validateText(section: string, text: string): Promise<{ text: string; violations: string[] }> {
+export type DirectProduct = 'dcharts' | 'synastry' | 'composite'
+
+export async function validateText(section: string, text: string, product: DirectProduct): Promise<{ text: string; violations: string[] }> {
   const r = await fetch(`${API_URL}/internal/validate`, {
     method:  'POST',
     headers: internalHeaders(),
-    body:    JSON.stringify({ section, text }),
+    body:    JSON.stringify({ section, text, product }),
     cache:   'no-store',
   })
   if (!r.ok) throw new InterpretFailure(`Validation service returned ${r.status}`, 502)
@@ -89,6 +91,7 @@ export async function generateDirect(opts: {
   system:    string
   user:      string
   section:   string
+  product:   DirectProduct
   maxTokens?: number
 }): Promise<{ text: string; usage: Usage; model: string }> {
   let maxTokens = opts.maxTokens ?? 4096
@@ -118,7 +121,7 @@ export async function generateDirect(opts: {
       .join('')
     if (!raw.trim()) { reasons.push('empty'); continue }
 
-    const checked = await validateText(opts.section, raw)
+    const checked = await validateText(opts.section, raw, opts.product)
     if (checked.violations.length > 0) { reasons.push(...checked.violations); continue }
     return { text: checked.text, usage, model: MODEL }
   }
