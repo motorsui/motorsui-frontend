@@ -66,7 +66,7 @@ export async function callBackendInterpret(
 
 export type DirectProduct = 'dcharts' | 'synastry' | 'composite'
 
-export async function validateText(section: string, text: string, product: DirectProduct): Promise<{ text: string; violations: string[] }> {
+export async function validateText(section: string, text: string, product: DirectProduct): Promise<{ text: string; violations: string[]; revision?: string | null }> {
   const r = await fetch(`${API_URL}/internal/validate`, {
     method:  'POST',
     headers: internalHeaders(),
@@ -74,13 +74,15 @@ export async function validateText(section: string, text: string, product: Direc
     cache:   'no-store',
   })
   if (!r.ok) throw new InterpretFailure(`Validation service returned ${r.status}`, 502)
-  return await r.json() as { text: string; violations: string[] }
+  return await r.json() as { text: string; violations: string[]; revision?: string | null }
 }
 
 // ─── Frontend-direct generation (Loving + D-Charts) ──────────────────────────
 //
 // Bounded attempts. A truncated response (stop_reason max_tokens) is never
-// stored: the section retries with a larger budget, then fails.
+// stored: the section retries with a larger budget, then fails. A draft that
+// fails the voice checks goes back with the validator's revision request so
+// only the violating sentences are rewritten.
 
 const MAX_ATTEMPTS       = 2
 const MAX_TOKENS_CEILING = 8192
@@ -97,6 +99,7 @@ export async function generateDirect(opts: {
   let maxTokens = opts.maxTokens ?? 4096
   const reasons: string[] = []
   const usage: Usage = { input_tokens: 0, output_tokens: 0, attempts: 0 }
+  let messages: Anthropic.MessageParam[] = [{ role: 'user', content: opts.user }]
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const message = await opts.anthropic.messages.create({
@@ -104,7 +107,7 @@ export async function generateDirect(opts: {
       max_tokens:  maxTokens,
       temperature: 0.3,
       system:      opts.system,
-      messages:    [{ role: 'user', content: opts.user }],
+      messages,
     })
     usage.input_tokens  += message.usage.input_tokens
     usage.output_tokens += message.usage.output_tokens
@@ -122,7 +125,15 @@ export async function generateDirect(opts: {
     if (!raw.trim()) { reasons.push('empty'); continue }
 
     const checked = await validateText(opts.section, raw, opts.product)
-    if (checked.violations.length > 0) { reasons.push(...checked.violations); continue }
+    if (checked.violations.length > 0) {
+      reasons.push(...checked.violations)
+      if (checked.revision) {
+        messages = [messages[0],
+                    { role: 'assistant', content: checked.text },
+                    { role: 'user', content: checked.revision }]
+      }
+      continue
+    }
     return { text: checked.text, usage, model: MODEL }
   }
   throw new InterpretFailure('generation_failed_checks', 422, reasons)
