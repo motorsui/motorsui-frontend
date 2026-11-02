@@ -144,7 +144,7 @@ const SYNASTRY_SECTIONS: SynSectionDef[] = [
   // Cross-Chart Aspects (1 section)
   {
     column:  'synastry_cross_aspects',
-    name:    'all active cross-chart degree-based aspects (5° orb) between Person A\'s natal planets and Person B\'s natal planets — conjunction, opposition, trine, square, sextile. For each active aspect: which planets, which persons, the orb, applying or separating, aspect character, and what this specific planetary interaction creates in the relationship dynamic. Also include any Graha Drishti (Parashari house-based aspects) that cross the two charts. Then the Uranus, Neptune and Pluto contacts in compatibility.outer_planet_contacts, as a secondary modern layer under the OUTER PLANET LAYER: only those listed contacts carry relational meaning, and shared_generational_placements are generational, never compatibility evidence',
+    name:    'all active cross-chart degree-based aspects (5° orb) between Person A\'s natal planets and Person B\'s natal planets — conjunction, opposition, trine, square, sextile. For each active aspect: which planets, which persons, the orb, applying or separating where the data gives it (never inferred from the angle alone), aspect character, and what this specific planetary interaction creates in the relationship dynamic. Also include any Graha Drishti (Parashari house-based aspects) that cross the two charts. Then the Uranus, Neptune and Pluto contacts in compatibility.outer_planet_contacts, as a secondary modern layer under the OUTER PLANET LAYER: only those listed contacts carry relational meaning, and shared_generational_placements are generational, never compatibility evidence',
     wordCap: 2000,
   },
 
