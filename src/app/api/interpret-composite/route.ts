@@ -45,6 +45,7 @@ const CHANNEL_PAIRS: ChannelPair[] = [
   { a: 7,  b: 31, name: 'The Alpha' },
   { a: 9,  b: 52, name: 'Concentration' },
   { a: 10, b: 20, name: 'Awakening' },
+  { a: 10, b: 34, name: 'Exploration' },
   { a: 10, b: 57, name: 'Perfected Form' },
   { a: 11, b: 56, name: 'Curiosity' },
   { a: 12, b: 22, name: 'Openness' },
