@@ -11,6 +11,7 @@ import {
 //
 // Generated here. Governing documents, served by the backend:
 //   CLAUDE_SYSTEM.md + CLAUDE_SYNASTRY.md + PSYCHOLOGY LAYER (CLAUDE_CORE_SYNASTRY.md)
+//   + OUTER PLANET LAYER (CLAUDE_CORE_OUTER_PLANETS.md)
 //
 // Person A is the caller's own chart; Person B is the caller's partner chart.
 // The browser supplies neither: both are resolved from the caller's rows.
@@ -143,7 +144,7 @@ const SYNASTRY_SECTIONS: SynSectionDef[] = [
   // Cross-Chart Aspects (1 section)
   {
     column:  'synastry_cross_aspects',
-    name:    'all active cross-chart degree-based aspects (5° orb) between Person A\'s natal planets and Person B\'s natal planets — conjunction, opposition, trine, square, sextile. For each active aspect: which planets, which persons, the orb, applying or separating, aspect character, and what this specific planetary interaction creates in the relationship dynamic. Also include any Graha Drishti (Parashari house-based aspects) that cross the two charts',
+    name:    'all active cross-chart degree-based aspects (5° orb) between Person A\'s natal planets and Person B\'s natal planets — conjunction, opposition, trine, square, sextile. For each active aspect: which planets, which persons, the orb, applying or separating, aspect character, and what this specific planetary interaction creates in the relationship dynamic. Also include any Graha Drishti (Parashari house-based aspects) that cross the two charts. Then the Uranus, Neptune and Pluto contacts in compatibility.outer_planet_contacts, as a secondary modern layer under the OUTER PLANET LAYER: only those listed contacts carry relational meaning, and shared_generational_placements are generational, never compatibility evidence',
     wordCap: 2000,
   },
 
@@ -238,6 +239,8 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
     'Do not reference HD gates, channels, centers, Incarnation Cross, type, profile, ' +
     'authority, variables, or any Human Design mechanic in this section. ' +
     'Interpret using classical Jyotish mechanics only. ' +
+    'compatibility.outer_planet_contacts is a modern supplementary layer: use it only where the section names it, ' +
+    'and never present it as Jyotish. ' +
     'Compatibility interpretation is explicitly authorized for this session.\n\n'
 
   const scopeBlock =
@@ -301,10 +304,11 @@ export async function POST(request: NextRequest) {
   let context: Promise<{ system: string; payloadStr: string }> | null = null
   const getContext = () => context ??= (async () => {
     const conclusionBirth = extractBirthPayload(self.chart_json)
-    const [systemDoc, familyDoc, coreDoc, compatibility, conclusions] = await Promise.all([
+    const [systemDoc, familyDoc, coreDoc, outerDoc, compatibility, conclusions] = await Promise.all([
       fetchGoverningDoc('CLAUDE_SYSTEM.md'),
       fetchGoverningDoc('CLAUDE_SYNASTRY.md'),
       fetchGoverningDoc('CLAUDE_CORE_SYNASTRY.md'),
+      fetchGoverningDoc('CLAUDE_CORE_OUTER_PLANETS.md'),
       fetchCalculation('/astrology/synastry', { person1: birthA, person2: birthB }),
       conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake, true) : Promise.resolve(null),
     ])
@@ -322,7 +326,8 @@ export async function POST(request: NextRequest) {
     // Astrology-only product: no HD or Gene Keys signals in the conclusions.
     if (conclusions) payload.domain_conclusions = jyotishOnlyConclusions(conclusions)
     return {
-      system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc,
+      system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc
+                  + '\n\n---\nOUTER PLANET LAYER\n\n' + outerDoc,
       payloadStr: JSON.stringify(payload, null, 2),
     }
   })()
