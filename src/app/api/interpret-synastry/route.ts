@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
       fetchGoverningDoc('CLAUDE_SYNASTRY.md'),
       fetchGoverningDoc('CLAUDE_CORE_SYNASTRY.md'),
       fetchCalculation('/astrology/synastry', { person1: birthA, person2: birthB }),
-      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake) : Promise.resolve(null),
+      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake, true) : Promise.resolve(null),
     ])
     const configured = configureSystemDoc(systemDoc, {
       product:       'synastry',

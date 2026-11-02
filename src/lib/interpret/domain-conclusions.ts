@@ -52,12 +52,14 @@ export function extractBirthPayload(chartJson: unknown): BirthPayload | null {
 
 /**
  * Call /natal/conclusions on the Python API and return the full conclusions
- * dict, or null if the call fails (graceful degradation).
+ * dict, or null if the call fails (graceful degradation). Astrology-only
+ * products pass jyotishOnly so the composite score excludes the HD signal.
  */
 export async function fetchDomainConclusions(
   birth:       BirthPayload,
   productType: 'self' | 'relational' | 'parenting',
   intakeJson?: Record<string, unknown> | null,
+  jyotishOnly = false,
 ): Promise<Record<string, unknown> | null> {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.motorsui.com'
@@ -67,6 +69,7 @@ export async function fetchDomainConclusions(
       product_type: productType,
     }
     if (intakeJson) body.intake_json = intakeJson
+    if (jyotishOnly) body.jyotish_only = true
 
     const res = await fetch(`${apiUrl}/natal/conclusions`, {
       method:  'POST',

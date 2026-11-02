@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       fetchGoverningDoc('CLAUDE_CORE_DCHARTS.md'),
       fetchGoverningDoc('CLAUDE_ASTRO.md'),
       fetchCalculation('/astrology/dcharts', birth),
-      fetchDomainConclusions(birth as never, 'self', intake),
+      fetchDomainConclusions(birth as never, 'self', intake, true),
     ])
     const configured = configureSystemDoc(systemDoc, {
       product:       'dcharts',

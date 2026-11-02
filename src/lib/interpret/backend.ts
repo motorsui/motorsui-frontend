@@ -375,9 +375,9 @@ export async function resolveParenting(
   if (child.id !== parent.child_chart_id && child.chart_label !== 'child') return jsonError('Not a child chart', 400)
   if (parent.intake_parenting_complete !== true) return jsonError('Parenting intake incomplete', 409)
 
-  const parentBirth = birthFromChartJson(parent.chart_json)
-  const childBirth  = birthFromChartJson(child.chart_json)
-  if (!parentBirth || !childBirth) return jsonError('Chart has no usable birth data', 422)
+  // Child's chart only: the parent's row supplies ownership and the intake, never birth data.
+  const childBirth = birthFromChartJson(child.chart_json)
+  if (!childBirth) return jsonError('Chart has no usable birth data', 422)
   const intake = (parent.intake_parenting as Record<string, unknown> | null) ?? null
-  return { row: child, body: section => ({ parent: parentBirth, child: childBirth, section, intake }) }
+  return { row: child, body: section => ({ child: childBirth, section, intake }) }
 }

@@ -8,7 +8,7 @@ import ts from 'typescript'
 
 const src = readFileSync(new URL('../src/lib/interpret/domain-conclusions.ts', import.meta.url), 'utf8')
 const js  = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-const { jyotishOnlyConclusions, buildDomainContextBlock } =
+const { jyotishOnlyConclusions, buildDomainContextBlock, fetchDomainConclusions } =
   await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
 
 // Shape of build_domain_conclusion() output (domain_conclusion.py).
@@ -52,4 +52,25 @@ test('no Jyotish signal leaves no primary note, and null passes through', () => 
 test('the input object is not mutated', () => {
   const c = career(); jyotishOnlyConclusions({ career: c })
   assert.deepEqual(c, career())
+})
+
+async function requestBody(...args) {
+  const orig = globalThis.fetch
+  let body
+  globalThis.fetch = async (_url, init) => { body = JSON.parse(init.body); return { ok: true, json: async () => ({}) } }
+  try { await fetchDomainConclusions(...args) } finally { globalThis.fetch = orig }
+  return body
+}
+
+test('astrology products request Jyotish-only scoring; others do not', async () => {
+  const birth = { year: 1981 }
+  assert.equal((await requestBody(birth, 'self', null, true)).jyotish_only, true)
+  assert.equal('jyotish_only' in (await requestBody(birth, 'relational', null)), false)
+})
+
+test('Loving Astro and D-Charts pass jyotishOnly; Loving HD keeps the default', () => {
+  const route = f => readFileSync(new URL(`../src/app/api/${f}/route.ts`, import.meta.url), 'utf8')
+  assert.match(route('interpret-synastry'), /fetchDomainConclusions\(conclusionBirth, 'relational', intake, true\)/)
+  assert.match(route('interpret'), /fetchDomainConclusions\(birth as never, 'self', intake, true\)/)
+  assert.match(route('interpret-composite'), /fetchDomainConclusions\(conclusionBirth, 'relational', intake\)/)
 })
