@@ -292,6 +292,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   const row   = await findOrCreatePairRow(admin, TABLE, String(self.id), String(partner.id))
+  if (row instanceof Response) return row
   const missing = SYNASTRY_SECTIONS.map(s => s.column).filter(c => isMissing(row[c]) && (!asked || asked.has(c)))
   const skipped = SYNASTRY_SECTIONS.map(s => s.column).filter(c => !missing.includes(c))
   const byColumn = new Map(SYNASTRY_SECTIONS.map(s => [s.column, s]))

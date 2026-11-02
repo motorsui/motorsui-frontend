@@ -33,7 +33,7 @@ async function createPersonBChart(
     country: string
   },
   label: 'partner' | 'child'
-): Promise<{ chartId: string; error?: string }> {
+): Promise<{ chartId: string; error?: string; status?: number }> {
   const { name, date, time, city, state, country } = birthData
 
   // Geocode
@@ -50,15 +50,16 @@ async function createPersonBChart(
   const latitude  = parseFloat(geocodeData[0].lat)
   const longitude = parseFloat(geocodeData[0].lon)
 
-  // Timezone
-  let timezone = 'UTC'
+  // Timezone (no UTC fallback: a wrong offset would silently store a wrong chart)
+  let timezone = ''
   try {
     const tzRes  = await fetch(
       `https://www.timeapi.io/api/timezone/coordinate?latitude=${latitude}&longitude=${longitude}`
     )
-    const tzData = await tzRes.json()
-    if (tzData.timeZone) timezone = tzData.timeZone
-  } catch { /* fall back to UTC */ }
+    const tzData = tzRes.ok ? await tzRes.json() : null
+    if (typeof tzData?.timeZone === 'string') timezone = tzData.timeZone
+  } catch { /* handled below */ }
+  if (!timezone) return { chartId: '', error: 'Timezone lookup failed. Please try again.', status: 502 }
 
   // Parse birth date/time
   const [year, month, day] = date.split('-').map(Number)
@@ -187,12 +188,12 @@ export async function POST(request: NextRequest) {
     let partnerChartId = existingPartner?.id ?? ''
 
     if (!partnerChartId) {
-      const { chartId: newId, error: calcErr } = await createPersonBChart(
+      const { chartId: newId, error: calcErr, status: calcStatus } = await createPersonBChart(
         user.id,
         { name: personBName, date: personBDate, time: personBTime, city: personBCity, state: personBState, country: personBCountry },
         'partner'
       )
-      if (calcErr) return NextResponse.json({ error: calcErr }, { status: 500 })
+      if (calcErr) return NextResponse.json({ error: calcErr }, { status: calcStatus ?? 500 })
       partnerChartId = newId
     }
 
@@ -256,12 +257,12 @@ export async function POST(request: NextRequest) {
     let childChartId = existingChild?.id ?? ''
 
     if (!childChartId) {
-      const { chartId: newId, error: calcErr } = await createPersonBChart(
+      const { chartId: newId, error: calcErr, status: calcStatus } = await createPersonBChart(
         user.id,
         { name: childName, date: childDate, time: childTime, city: childCity, state: childState, country: childCountry },
         'child'
       )
-      if (calcErr) return NextResponse.json({ error: calcErr }, { status: 500 })
+      if (calcErr) return NextResponse.json({ error: calcErr }, { status: calcStatus ?? 500 })
       childChartId = newId
     }
 

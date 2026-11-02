@@ -20,6 +20,7 @@ export default async function HdProductPage() {
     .from('charts')
     .select('*')
     .eq('user_id', user.id)
+    .eq('chart_label', 'self')
     .order('generated_at', { ascending: false })
     .limit(1)
     .maybeSingle()

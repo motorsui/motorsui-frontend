@@ -78,7 +78,7 @@ export default async function ProductsPage() {
   if (!user) redirect('/login')
 
   const [{ data: chart }, { data: profile }] = await Promise.all([
-    supabase.from('charts').select('id').eq('user_id', user.id).maybeSingle(),
+    supabase.from('charts').select('id').eq('user_id', user.id).eq('chart_label', 'self').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('profiles').select('purchased_products').eq('id', user.id).maybeSingle(),
   ])
 

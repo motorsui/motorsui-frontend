@@ -17,6 +17,9 @@ const GHL_VERSION = '2021-07-28'
 // In GHL: create a Workflow trigger on this tag to fire the E1/E2/E3 sequence.
 const FUNNEL_TAG = 'motorsui-chart-funnel'
 
+const GHL_ATTEMPTS   = 3
+const GHL_BACKOFF_MS = 500   // 0.5s, then 1.5s
+
 export interface GHLContactInput {
   firstName?:    string
   lastName?:     string
@@ -85,15 +88,28 @@ export async function upsertContact(input: GHLContactInput): Promise<string | nu
 
     if (customFields.length > 0) body.customFields = customFields
 
-    const res = await fetch(`${GHL_BASE}/contacts/upsert`, {
-      method:  'POST',
-      headers: headers(),
-      body:    JSON.stringify(body),
-    })
+    // Upsert dedupes on email, so retrying is safe. Retries network errors,
+    // 429 and 5xx with backoff; other 4xx fail immediately.
+    let res: Response | null = null
+    for (let attempt = 1; attempt <= GHL_ATTEMPTS; attempt++) {
+      try {
+        res = await fetch(`${GHL_BASE}/contacts/upsert`, {
+          method:  'POST',
+          headers: headers(),
+          body:    JSON.stringify(body),
+        })
+        if (res.ok || (res.status < 500 && res.status !== 429)) break
+        console.warn(`[ghl] upsert attempt ${attempt}/${GHL_ATTEMPTS} got ${res.status}`)
+      } catch (err) {
+        res = null
+        console.warn(`[ghl] upsert attempt ${attempt}/${GHL_ATTEMPTS} error:`, err)
+      }
+      if (attempt < GHL_ATTEMPTS) await new Promise(r => setTimeout(r, GHL_BACKOFF_MS * 3 ** (attempt - 1)))
+    }
 
-    if (!res.ok) {
-      const text = await res.text()
-      console.error(`[ghl] upsert failed (${res.status}):`, text)
+    if (!res || !res.ok) {
+      const text = res ? await res.text() : 'no response'
+      console.error(`[ghl] upsert FAILED for contact after ${GHL_ATTEMPTS} attempts (${res?.status ?? 'network'}):`, text)
       return null
     }
 

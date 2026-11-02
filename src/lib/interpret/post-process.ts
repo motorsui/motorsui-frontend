@@ -14,7 +14,8 @@ export function removeEmDashes(text: string): string {
 // ─── 2. "is not" / "are not" correction (model-assisted) ─────────────────────
 // Detects violations, sends the full text back for a targeted affirmative rewrite.
 // Uses temperature 0.1 and no system prompt — purely mechanical correction pass.
-// Returns original text unchanged if no violations or if the call fails.
+// Returns original text unchanged if no violations, if the call fails, or if the
+// rewrite was truncated (stop_reason other than end_turn) or empty.
 
 export async function fixIsNotViolations(
   text: string,
@@ -45,10 +46,20 @@ export async function fixIsNotViolations(
       }],
     })
 
-    return message.content
+    const rewritten = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map(b => b.text)
       .join('')
+    // A truncated or empty rewrite would replace good text with partial text.
+    if (message.stop_reason !== 'end_turn' || !rewritten.trim()) {
+      console.error(
+        `[post-process${label ? ' ' + label : ''}] correction pass unusable ` +
+        `(stop_reason=${message.stop_reason}) — returning original`
+      )
+      return text
+    }
+    // The rewrite is model output, so it gets the deterministic clean again.
+    return removeEmDashes(rewritten)
   } catch (err) {
     console.error(
       `[post-process${label ? ' ' + label : ''}] correction pass failed — returning original:`,

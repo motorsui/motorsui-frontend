@@ -135,16 +135,16 @@ export async function POST(request: NextRequest) {
       const longitude = parseFloat(geocodeData[0].lon)
 
       // Resolve IANA timezone from coordinates via TimeAPI
-      let timezone = 'UTC'
+      // No UTC fallback: skip the chart instead; the user recalculates from the chart page.
+      let timezone = ''
       try {
         const tzRes  = await fetch(
           `https://www.timeapi.io/api/timezone/coordinate?latitude=${latitude}&longitude=${longitude}`
         )
-        const tzData = await tzRes.json()
-        if (tzData.timeZone) timezone = tzData.timeZone
-      } catch {
-        // Falls back to UTC — chart will still calculate with reduced DST accuracy
-      }
+        const tzData = tzRes.ok ? await tzRes.json() : null
+        if (typeof tzData?.timeZone === 'string') timezone = tzData.timeZone
+      } catch { /* handled below */ }
+      if (!timezone) throw new Error('Timezone lookup failed')
 
       // Parse birth date + time, compute historical UTC offset
       const [year, month, day] = birth_date.split('-').map(Number)
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
 
       const { data: inserted, error: chartError } = await adminSupabase
         .from('charts')
-        .insert({ user_id: userId, chart_json })
+        .insert({ user_id: userId, chart_label: 'self', chart_json })
         .select('id')
         .single()
 

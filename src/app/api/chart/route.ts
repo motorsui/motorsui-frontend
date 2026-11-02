@@ -47,15 +47,17 @@ export async function POST(request: NextRequest) {
   const longitude = parseFloat(geocodeData[0].lon)
 
   // Get IANA timezone name from coordinates
-  let timezone = 'UTC'
+  // No UTC fallback: a wrong offset would silently store a wrong chart.
+  let timezone = ''
   try {
     const tzRes = await fetch(
       `https://www.timeapi.io/api/timezone/coordinate?latitude=${latitude}&longitude=${longitude}`
     )
-    const tzData = await tzRes.json()
-    if (tzData.timeZone) timezone = tzData.timeZone
-  } catch {
-    // Fall back to UTC if timezone lookup fails
+    const tzData = tzRes.ok ? await tzRes.json() : null
+    if (typeof tzData?.timeZone === 'string') timezone = tzData.timeZone
+  } catch { /* handled below */ }
+  if (!timezone) {
+    return NextResponse.json({ error: 'Timezone lookup failed. Please try again.' }, { status: 502 })
   }
 
   // Parse birth date and time
@@ -127,6 +129,9 @@ export async function POST(request: NextRequest) {
     .from('charts')
     .select('id')
     .eq('user_id', user.id)
+    .eq('chart_label', 'self')
+    .order('generated_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   if (existing) {
@@ -138,7 +143,7 @@ export async function POST(request: NextRequest) {
   } else {
     const { data: inserted, error: insertError } = await adminSupabase
       .from('charts')
-      .insert({ user_id: user.id, chart_json, evidence_objects })
+      .insert({ user_id: user.id, chart_label: 'self', chart_json, evidence_objects })
       .select('id')
       .single()
     if (insertError) console.error('[chart] insert error:', insertError)

@@ -228,20 +228,28 @@ export async function loadOwnedPair(
 
 // Pair rows (synastry_interpretations, hd_composite_interpretations) have RLS
 // enabled with no policies, so they are read and written server-side only.
+// Returns a Response on failure (called before the stream opens). A concurrent
+// first run can race the insert; the unique (chart_id_a, chart_id_b) key makes
+// the loser re-read the winner's row.
 export async function findOrCreatePairRow(
   admin: SupabaseClient,
   table: string,
   chartIdA: string,
   chartIdB: string,
-): Promise<Record<string, unknown>> {
-  const { data: existing, error } = await admin
-    .from(table).select('*').eq('chart_id_a', chartIdA).eq('chart_id_b', chartIdB).maybeSingle()
-  if (error) throw new InterpretFailure(`${table} lookup failed: ${error.message}`, 502)
+): Promise<Record<string, unknown> | Response> {
+  const lookup = () => admin.from(table).select('*').eq('chart_id_a', chartIdA).eq('chart_id_b', chartIdB).maybeSingle()
+  const { data: existing, error } = await lookup()
+  if (error) return jsonError(`${table} lookup failed`, 502)
   if (existing) return existing as Record<string, unknown>
   const { data: inserted, error: insertError } = await admin
     .from(table).insert({ chart_id_a: chartIdA, chart_id_b: chartIdB }).select('*').single()
-  if (insertError || !inserted) throw new InterpretFailure(`${table} insert failed: ${insertError?.message ?? 'no row'}`, 502)
-  return inserted as Record<string, unknown>
+  if (inserted) return inserted as Record<string, unknown>
+  if (insertError?.code === '23505') {
+    const { data: raced } = await lookup()
+    if (raced) return raced as Record<string, unknown>
+  }
+  console.error(`[interpret] ${table} insert failed:`, insertError?.message ?? 'no row')
+  return jsonError(`${table} insert failed`, 502)
 }
 
 // Public calculation endpoints (no secret needed). Non-200 aborts the run.

@@ -393,6 +393,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   const row   = await findOrCreatePairRow(admin, TABLE, String(self.id), String(partner.id))
+  if (row instanceof Response) return row
 
   // Stored maps are seeded from the row so a partial run never drops earlier channels.
   const maps = new Map(CHANNEL_GROUPS.map(g => [g.column, { ...((row[g.column] as Record<string, string> | null) ?? {}) }]))
