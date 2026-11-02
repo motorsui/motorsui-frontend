@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { extractBirthPayload, fetchDomainConclusions } from '@/lib/interpret/domain-conclusions'
+import { extractBirthPayload, fetchDomainConclusions, jyotishOnlyConclusions } from '@/lib/interpret/domain-conclusions'
 import {
   birthFromChartJson, configureSystemDoc, fetchCalculation, fetchGoverningDoc, findOrCreatePairRow,
   generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
@@ -319,7 +319,8 @@ export async function POST(request: NextRequest) {
     const payload = buildSynastryPayload(self.chart_json, partner.chart_json)
     payload.compatibility = compatibility
     if (intake)      payload.intake = intake
-    if (conclusions) payload.domain_conclusions = conclusions
+    // Astrology-only product: no HD or Gene Keys signals in the conclusions.
+    if (conclusions) payload.domain_conclusions = jyotishOnlyConclusions(conclusions)
     return {
       system:     configured + '\n\n---\n\n' + familyDoc + '\n\n---\nPSYCHOLOGY LAYER\n\n' + coreDoc,
       payloadStr: JSON.stringify(payload, null, 2),

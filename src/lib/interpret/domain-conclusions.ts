@@ -83,6 +83,37 @@ export async function fetchDomainConclusions(
 }
 
 /**
+ * Jyotish view of /natal/conclusions for astrology-only products (Loving Astro,
+ * D-Charts). Mirrors the backend's interpret._jyotish_only_conclusions: headline
+ * signals keep system === 'jyotish' only, cross_system (HD channel, HD center
+ * and Gene Keys alignment text) and its counts are dropped, and primary_note is
+ * taken from the first remaining signal. Scores are unchanged.
+ */
+export function jyotishOnlyConclusions(
+  conclusions: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!conclusions) return null
+  const out: Record<string, unknown> = {}
+  for (const [domain, data] of Object.entries(conclusions)) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) { out[domain] = data; continue }
+    const view: Record<string, unknown> = { ...(data as Record<string, unknown>) }
+    delete view.cross_system
+    const sigs = ((view.headline_signals as Record<string, unknown>[] | undefined) ?? [])
+      .filter(s => s?.system === 'jyotish')
+    view.headline_signals = sigs
+    if (view.overall && typeof view.overall === 'object') {
+      const overall: Record<string, unknown> = { ...(view.overall as Record<string, unknown>) }
+      delete overall.alignments_count
+      delete overall.tensions_count
+      overall.primary_note = sigs.length ? sigs[0].note : null
+      view.overall = overall
+    }
+    out[domain] = view
+  }
+  return out
+}
+
+/**
  * Build a compact multi-line text block from domain conclusions for injection
  * into the system prompt [DOMAIN_CONCLUSIONS_JSON...] placeholder.
  *
