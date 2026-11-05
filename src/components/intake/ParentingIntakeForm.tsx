@@ -7,6 +7,10 @@ import {
   PARENTING_QUESTION_LIST,
   PARENTING_SECTIONS,
   PARENTING_CHILD_SECTION,
+  PARENTING_QUESTIONNAIRE_VERSION,
+  firstUnansweredParentingIndex,
+  isParentingQuestionAnswered,
+  parentingIntakeVersion,
   type IntakeQuestion,
 } from '@/lib/intake-questions'
 
@@ -19,17 +23,20 @@ PARENTING_SECTIONS.forEach(section => {
   })
 })
 
-const OPTIONAL_IDS = new Set(['p20', 'p26', 'p37', 'p50'])
+const TOTAL        = PARENTING_QUESTION_LIST.length
+const CONFIRM_STEP = TOTAL + 1
+const LEGACY_STEP  = -2
 
 function computeInitialStep(initialAnswers?: Record<string, string>): number {
   if (!initialAnswers) return -1
-  const allQIds = PARENTING_QUESTION_LIST.map(q => q.id)
+  // Answers begun on an earlier version are kept as they are, never carried into v2 wording.
+  const version = parentingIntakeVersion(initialAnswers)
+  if (version && version !== PARENTING_QUESTIONNAIRE_VERSION) return LEGACY_STEP
   const hasBirthData = (initialAnswers['c_name'] ?? '').trim() !== ''
   if (!hasBirthData) return -1
-  const allAnswered = allQIds.every(id => OPTIONAL_IDS.has(id) || (initialAnswers[id] ?? '').trim() !== '')
-  if (allAnswered) return 69
-  const firstUnanswered = allQIds.findIndex(id => !OPTIONAL_IDS.has(id) && (initialAnswers[id] ?? '').trim() === '')
-  return firstUnanswered === -1 ? 69 : firstUnanswered + 1
+  const firstUnanswered = firstUnansweredParentingIndex(initialAnswers)
+  // Fully answered but not yet submitted: reopen on the last question so Submit is reachable.
+  return firstUnanswered === -1 ? TOTAL : firstUnanswered + 1
 }
 
 async function autosave(chartId: string, answers: Record<string, string>) {
@@ -306,6 +313,30 @@ function BirthField({
   )
 }
 
+// ── Question field renderer ───────────────────────────────────────────────────
+
+function AnswerField({
+  question,
+  value,
+  onChange,
+}: {
+  question: IntakeQuestion
+  value: string
+  onChange: (v: string) => void
+}) {
+  if (question.type === 'select' && question.options) {
+    return <BirthField question={question} value={value} onChange={onChange} />
+  }
+  return (
+    <textarea
+      style={S.textarea}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      rows={5}
+    />
+  )
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface ParentingIntakeFormProps {
@@ -340,9 +371,7 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
   }
 
   function validateQuestion(q: IntakeQuestion): string | null {
-    if (!q.required) return null
-    const val = (answers[q.id] ?? '').trim()
-    if (!val) return 'Please answer this question before continuing.'
+    if (!isParentingQuestionAnswered(q, answers)) return 'Please answer this question before continuing.'
     return null
   }
 
@@ -374,7 +403,7 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
         }
         const data = await res.json() as { child_chart_id?: string }
         const childChartId = data.child_chart_id ?? ''
-        setStep(69)
+        setStep(CONFIRM_STEP)
         scrollTop()
         await onComplete(childChartId)
       } catch (e) {
@@ -386,6 +415,20 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
       setStep(s => s + 1)
       scrollTop()
     }
+  }
+
+  // ── Earlier-version intake (step = -2) ─────────────────────────────────────
+
+  if (step === LEGACY_STEP) {
+    return (
+      <div style={S.page}>
+        <div style={S.inner}>
+          <p style={S.eyebrow}>MOTORSUI</p>
+          <h1 style={S.heading}>This intake was started on an earlier version of the questionnaire.</h1>
+          <p style={S.subtitle}>Your earlier answers are saved and unchanged. Please contact MotorSui to continue.</p>
+        </div>
+      </div>
+    )
   }
 
   // ── Intro screen (step = -1) ───────────────────────────────────────────────
@@ -443,9 +486,9 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
     )
   }
 
-  // ── Confirmation screen (step = 69) ───────────────────────────────────────
+  // ── Confirmation screen (step = TOTAL + 1) ────────────────────────────────
 
-  if (step === 69) {
+  if (step === CONFIRM_STEP) {
     return (
       <div style={S.page}>
         <div style={S.inner}>
@@ -461,13 +504,13 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
     )
   }
 
-  // ── Question screens (steps 1-67) ─────────────────────────────────────────
+  // ── Question screens (steps 1-TOTAL) ──────────────────────────────────────
 
   const qIndex = step - 1
   const q = PARENTING_QUESTION_LIST[qIndex]
   const sectionTitle = questionSectionMap[q.id] ?? ''
-  const isLast = step === 67
-  const pct = Math.round((step / 67) * 100)
+  const isLast = step === TOTAL
+  const pct = Math.round((step / TOTAL) * 100)
 
   return (
     <div style={S.page}>
@@ -475,15 +518,16 @@ export default function ParentingIntakeForm({ chartId, initialAnswers, onComplet
         <div style={S.progressFill(pct)} />
       </div>
       <div style={S.inner}>
-        <p style={S.stepLabel}>Question {step} of 67</p>
+        <p style={S.stepLabel}>Question {step} of {TOTAL}</p>
         {sectionTitle && <p style={S.sectionTitle}>{sectionTitle}</p>}
         <p style={S.questionText}>{q.text}</p>
-        <textarea
-          style={S.textarea}
-          value={answers[q.id] ?? ''}
-          onChange={e => setAnswer(q.id, e.target.value)}
-          rows={5}
-        />
+        <AnswerField question={q} value={answers[q.id] ?? ''} onChange={v => setAnswer(q.id, v)} />
+        {q.detail && (
+          <div style={{ marginTop: '24px' }}>
+            <label style={S.label}>{q.detail.text}</label>
+            <AnswerField question={q.detail} value={answers[q.detail.id] ?? ''} onChange={v => setAnswer(q.detail!.id, v)} />
+          </div>
+        )}
         {error && <p style={S.error}>{error}</p>}
         <div style={S.nav}>
           {step > 1 ? (

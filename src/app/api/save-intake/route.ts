@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { mintPartnerToken, partnerIntakePath } from '@/lib/partner-intake-token'
+import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
+import {
+  PARENTING_QUESTIONNAIRE_VERSION,
+  RELATIONAL_QUESTIONNAIRE_VERSION,
+  SELF_QUESTIONNAIRE_VERSION,
+  missingParentingAnswers,
+  missingRelationalAnswers,
+  missingSelfAnswers,
+  parentingIntakeVersion,
+  relationalIntakeVersion,
+  selfIntakeVersion,
+  toParentingSubmission,
+  toRelationalSubmission,
+  toSelfSubmission,
+} from '@/lib/intake-questions'
 
 // Returns the UTC offset in hours for a given birth time in an IANA timezone.
 function getUtcOffsetHours(
@@ -150,9 +165,27 @@ export async function POST(request: NextRequest) {
 
   // ─── Self intake (Products 1-4) ───────────────────────────────────────────
   if (formType === 'self') {
+    // One submitted intake per chart, shared by Products 1-4; an intake begun
+    // on an earlier version is never overwritten.
+    const { data: current } = await adminSupa
+      .from('charts')
+      .select('intake_self, intake_self_complete')
+      .eq('id', chartId)
+      .single()
+    if (current?.intake_self_complete === true) {
+      return NextResponse.json({ error: 'Intake already submitted' }, { status: 409 })
+    }
+    const storedVersion = selfIntakeVersion(current?.intake_self)
+    if (storedVersion && storedVersion !== SELF_QUESTIONNAIRE_VERSION) {
+      return NextResponse.json({ error: 'Intake was started on an earlier questionnaire version' }, { status: 409 })
+    }
+    if (missingSelfAnswers(answers).length > 0) {
+      return NextResponse.json({ error: 'Required questions are unanswered' }, { status: 400 })
+    }
+
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_self: answers, intake_self_complete: true })
+      .update({ intake_self: toSelfSubmission(answers), intake_self_complete: true })
       .eq('id', chartId)
 
     if (updateError) {
@@ -165,6 +198,28 @@ export async function POST(request: NextRequest) {
 
   // ─── Relational intake (Products 5-6) ────────────────────────────────────
   if (formType === 'relational') {
+    // One submitted intake per purchaser chart; an intake begun on an earlier
+    // version is never overwritten. The partner's own row is written only
+    // through their share link, never from here.
+    const { data: current } = await adminSupa
+      .from('charts')
+      .select('chart_label, intake_relational, intake_relational_complete')
+      .eq('id', chartId)
+      .single()
+    if (current?.chart_label === 'partner' || current?.chart_label === 'child') {
+      return NextResponse.json({ error: 'Chart not found' }, { status: 404 })
+    }
+    if (current?.intake_relational_complete === true) {
+      return NextResponse.json({ error: 'Intake already submitted' }, { status: 409 })
+    }
+    const storedVersion = relationalIntakeVersion(current?.intake_relational)
+    if (storedVersion && storedVersion !== RELATIONAL_QUESTIONNAIRE_VERSION) {
+      return NextResponse.json({ error: 'Intake was started on an earlier questionnaire version' }, { status: 409 })
+    }
+    if (missingRelationalAnswers(answers).length > 0) {
+      return NextResponse.json({ error: 'Required questions are unanswered' }, { status: 400 })
+    }
+
     // Extract Person B birth data from answers
     const personBName    = answers['r_name']    ?? ''
     const personBDate    = answers['r_date']    ?? ''
@@ -198,14 +253,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Share-link token for the partner's own intake. A new submit replaces
-    // the stored hash, so only the newest link works. None once it is locked.
+    // the stored hash, so only the newest link works. None once the partner
+    // has submitted (partner_relational_intakes).
     let partnerIntakePathValue: string | null = null
-    const { data: partnerRow } = await adminSupa
-      .from('charts')
-      .select('intake_relational_complete')
-      .eq('id', partnerChartId)
-      .maybeSingle()
-    if (partnerRow && partnerRow.intake_relational_complete !== true) {
+    if (!(await partnerIntakeSubmitted(adminSupa, partnerChartId))) {
       const { token, hash, expiresAt } = mintPartnerToken()
       const { error: tokenError } = await adminSupa
         .from('charts')
@@ -222,7 +273,7 @@ export async function POST(request: NextRequest) {
     // intake_relational_complete gates Products 5-6 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_relational: answers, intake_relational_complete: true, partner_chart_id: partnerChartId })
+      .update({ intake_relational: toRelationalSubmission(answers, true), intake_relational_complete: true, partner_chart_id: partnerChartId })
       .eq('id', chartId)
 
     if (updateError) {
@@ -235,6 +286,24 @@ export async function POST(request: NextRequest) {
 
   // ─── Parenting intake (Products 7-8) ─────────────────────────────────────
   if (formType === 'parenting') {
+    // One submitted intake per parent row: a resubmit (or a second child) must not
+    // replace it, and an intake begun on an earlier version is never overwritten.
+    const { data: current } = await adminSupa
+      .from('charts')
+      .select('intake_parenting, intake_parenting_complete')
+      .eq('id', chartId)
+      .single()
+    if (current?.intake_parenting_complete === true) {
+      return NextResponse.json({ error: 'Intake already submitted' }, { status: 409 })
+    }
+    const storedVersion = parentingIntakeVersion(current?.intake_parenting)
+    if (storedVersion && storedVersion !== PARENTING_QUESTIONNAIRE_VERSION) {
+      return NextResponse.json({ error: 'Intake was started on an earlier questionnaire version' }, { status: 409 })
+    }
+    if (missingParentingAnswers(answers).length > 0) {
+      return NextResponse.json({ error: 'Required questions are unanswered' }, { status: 400 })
+    }
+
     const childName    = answers['c_name']    ?? ''
     const childDate    = answers['c_date']    ?? ''
     const childTime    = answers['c_time']    ?? '12:00'
@@ -269,7 +338,7 @@ export async function POST(request: NextRequest) {
     // intake_parenting_complete gates Products 7-8 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
       .from('charts')
-      .update({ intake_parenting: answers, intake_parenting_complete: true, child_chart_id: childChartId })
+      .update({ intake_parenting: toParentingSubmission(answers), intake_parenting_complete: true, child_chart_id: childChartId })
       .eq('id', chartId)
 
     if (updateError) {

@@ -4,9 +4,20 @@ import { useState, useCallback } from 'react'
 import {
   SELF_QUESTION_LIST,
   SELF_SECTIONS,
+  SELF_INTRO,
+  SELF_QUESTIONNAIRE_VERSION,
+  PREFER_NOT_TO_DISCLOSE,
+  firstUnansweredSelfIndex,
+  isSelfQuestionAnswered,
+  joinMulti,
+  selfIntakeVersion,
+  splitMulti,
+  type IntakeQuestion,
 } from '@/lib/intake-questions'
 
-const TOTAL = SELF_QUESTION_LIST.length
+const TOTAL        = SELF_QUESTION_LIST.length
+const CONFIRM_STEP = TOTAL + 1
+const LEGACY_STEP  = -2
 
 // Build section title lookup by question ID
 const questionSectionMap: Record<string, string> = {}
@@ -17,12 +28,13 @@ for (const section of SELF_SECTIONS) {
 }
 
 function resumeStep(initialAnswers: Record<string, string> | undefined): number {
-  if (!initialAnswers || Object.keys(initialAnswers).length === 0) return -1
-  for (let i = 0; i < TOTAL; i++) {
-    const id = SELF_QUESTION_LIST[i].id
-    if ((initialAnswers[id] ?? '').trim() === '') return i + 1
-  }
-  return TOTAL + 1
+  // Answers begun on an earlier version are kept as they are, never carried into v2 wording.
+  const version = selfIntakeVersion(initialAnswers)
+  if (!version) return -1
+  if (version !== SELF_QUESTIONNAIRE_VERSION) return LEGACY_STEP
+  const firstUnanswered = firstUnansweredSelfIndex(initialAnswers ?? {})
+  // Fully answered but not yet submitted: reopen on the last question so Submit is reachable.
+  return firstUnanswered === -1 ? TOTAL : firstUnanswered + 1
 }
 
 async function autosave(chartId: string, answers: Record<string, string>) {
@@ -185,6 +197,77 @@ const S = {
     boxSizing: 'border-box' as const,
     marginBottom: '8px',
   },
+  input: {
+    width: '100%',
+    backgroundColor: 'rgba(244,241,232,0.04)',
+    border: '1px solid rgba(154,124,46,0.2)',
+    borderRadius: '2px',
+    padding: '12px 16px',
+    fontFamily: 'var(--font-cormorant, serif)',
+    fontSize: '17px',
+    color: '#f4f1e8',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+    marginBottom: '8px',
+  },
+  option: {
+    color: '#0e0c0b',
+  },
+  choices: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '10px',
+    alignSelf: 'flex-start' as const,
+    marginBottom: '8px',
+  },
+  choice: (on: boolean) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontFamily: 'var(--font-raleway, sans-serif)',
+    fontSize: '12px',
+    letterSpacing: '0.06em',
+    textTransform: 'capitalize' as const,
+    color: on ? '#0e0c0b' : 'rgba(244,241,232,0.75)',
+    backgroundColor: on ? '#9a7c2e' : 'transparent',
+    border: '1px solid rgba(154,124,46,0.35)',
+    borderRadius: '2px',
+    padding: '10px 14px',
+    cursor: 'pointer',
+  }),
+  note: {
+    fontFamily: 'var(--font-cormorant, serif)',
+    fontSize: '16px',
+    fontStyle: 'italic' as const,
+    lineHeight: '1.6',
+    color: 'rgba(244,241,232,0.6)',
+    marginTop: '-12px',
+    marginBottom: '24px',
+    alignSelf: 'flex-start' as const,
+  },
+  detailLabel: {
+    fontFamily: 'var(--font-cormorant, serif)',
+    fontSize: '19px',
+    lineHeight: '1.5',
+    color: 'rgba(244,241,232,0.85)',
+    margin: '20px 0 12px',
+    alignSelf: 'flex-start' as const,
+    display: 'block',
+  },
+  decline: (on: boolean) => ({
+    fontFamily: 'var(--font-raleway, sans-serif)',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase' as const,
+    color: on ? '#9a7c2e' : 'rgba(244,241,232,0.45)',
+    backgroundColor: 'transparent',
+    border: 'none',
+    padding: '4px 0',
+    cursor: 'pointer',
+    alignSelf: 'flex-start' as const,
+    marginBottom: '8px',
+  }),
   validationMsg: {
     fontFamily: 'var(--font-raleway, sans-serif)',
     fontSize: '11px',
@@ -230,6 +313,78 @@ const S = {
   },
 }
 
+// ── Question field renderer ───────────────────────────────────────────────────
+
+function AnswerField({
+  question,
+  value,
+  onChange,
+  onSubmitKey,
+  autoFocus = true,
+}: {
+  question: IntakeQuestion
+  value: string
+  onChange: (v: string) => void
+  onSubmitKey?: () => void
+  autoFocus?: boolean
+}) {
+  if (question.type === 'select' && question.options) {
+    return (
+      <select style={S.input} value={value} onChange={e => onChange(e.target.value)} aria-label={question.text}>
+        <option value="" style={S.option}>Select…</option>
+        {question.options.map(o => <option key={o} value={o} style={S.option}>{o}</option>)}
+      </select>
+    )
+  }
+  if (question.type === 'multiselect' && question.options) {
+    const selected = splitMulti(value)
+    return (
+      <div style={S.choices} role="group" aria-label={question.text}>
+        {question.options.map(o => {
+          const on = selected.includes(o)
+          return (
+            <label key={o} style={S.choice(on)}>
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() => onChange(joinMulti(question, on ? selected.filter(v => v !== o) : [...selected, o]))}
+              />
+              {o}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
+  if (question.type === 'text') {
+    // Selection or written answer: the list suggests, any typed answer is accepted.
+    const listId = question.options ? `${question.id}-options` : undefined
+    return (
+      <>
+        <input
+          style={S.input}
+          value={value}
+          list={listId}
+          onChange={e => onChange(e.target.value)}
+          aria-label={question.text}
+          autoFocus={autoFocus}
+        />
+        {listId && <datalist id={listId}>{question.options!.map(o => <option key={o} value={o} />)}</datalist>}
+      </>
+    )
+  }
+  return (
+    <textarea
+      style={S.textarea}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onSubmitKey?.() }}
+      aria-label={question.text}
+      autoFocus={autoFocus}
+    />
+  )
+}
+
 export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: SelfIntakeFormProps) {
   const [step, setStep]           = useState(() => resumeStep(initialAnswers))
   const [answers, setAnswers]     = useState<Record<string, string>>(initialAnswers ?? {})
@@ -241,6 +396,20 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
     if (validation) setValidation('')
   }, [validation])
 
+  // ── Earlier-version intake ────────────────────────────────────────────────
+
+  if (step === LEGACY_STEP) {
+    return (
+      <div style={S.page}>
+        <div style={S.inner}>
+          <p style={S.eyebrow}>MotorSui</p>
+          <h1 style={S.title}>This intake was started on an earlier version of the questionnaire.</h1>
+          <p style={S.subtitle}>Your earlier answers are saved and unchanged. Please contact MotorSui to continue.</p>
+        </div>
+      </div>
+    )
+  }
+
   // ── Intro screen ──────────────────────────────────────────────────────────
 
   if (step === -1) {
@@ -250,16 +419,9 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
           <p style={S.eyebrow}>MotorSui — Self Intake Form</p>
           <h1 style={S.title}>Sidereal Astrology · Human Design</h1>
           <p style={S.subtitle}>Completed by you, about you</p>
-          <p style={S.introParagraph}>
-            The accuracy and depth of your reading depends on what you share here. Your chart shows
-            the structural conditions you were born into and the energetic architecture that defines
-            how you move through the world. What the chart cannot show is how those conditions have
-            actually landed in your lived experience. The more precisely you describe your real life,
-            not the composed version, not the one you present to others, but the one you actually
-            inhabit, the more the reading can identify where your design is expressing cleanly, where
-            it is being blocked, where friction is structural rather than personal, and where genuine
-            potential has not yet met the right conditions. Answer honestly and specifically.
-          </p>
+          {SELF_INTRO.map((para, i) => (
+            <p key={i} style={{ ...S.introParagraph, marginBottom: i === SELF_INTRO.length - 1 ? '48px' : '20px' }}>{para}</p>
+          ))}
           <button style={S.btn} onClick={() => setStep(1)}>Begin</button>
         </div>
       </div>
@@ -268,7 +430,7 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
 
   // ── Confirmation screen ───────────────────────────────────────────────────
 
-  if (step === TOTAL + 1) {
+  if (step === CONFIRM_STEP) {
     return (
       <div style={S.page}>
         <div style={{ ...S.inner, alignItems: 'center' as const }}>
@@ -282,7 +444,7 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
     )
   }
 
-  // ── Question screens (steps 1-38) ─────────────────────────────────────────
+  // ── Question screens (steps 1-TOTAL) ──────────────────────────────────────
 
   const qIndex = step - 1
   const q = SELF_QUESTION_LIST[qIndex]
@@ -291,8 +453,7 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
   const pct = Math.round((step / TOTAL) * 100)
 
   const handleAdvance = async () => {
-    const val = (answers[q.id] ?? '').trim()
-    if (q.required && !val) {
+    if (!isSelfQuestionAnswered(q, answers)) {
       setValidation('Please answer this question before continuing.')
       return
     }
@@ -314,7 +475,7 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
           setSubmitting(false)
           return
         }
-        setStep(TOTAL + 1)
+        setStep(CONFIRM_STEP)
         await onComplete()
       } catch {
         setValidation('Something went wrong. Please try again.')
@@ -336,13 +497,24 @@ export default function SelfIntakeForm({ chartId, initialAnswers, onComplete }: 
         <p style={S.stepLabel}>Question {step} of {TOTAL}</p>
         {sectionTitle && <p style={S.sectionTitle}>{sectionTitle}</p>}
         <p style={S.questionText}>{q.text}</p>
-        <textarea
-          style={S.textarea}
-          value={answers[q.id] ?? ''}
-          onChange={e => setAnswer(q.id, e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdvance() }}
-          autoFocus
-        />
+        {q.note && <p style={S.note}>{q.note}</p>}
+        <AnswerField key={q.id} question={q} value={answers[q.id] ?? ''} onChange={v => setAnswer(q.id, v)} onSubmitKey={handleAdvance} />
+        {q.allowDecline && (
+          <button
+            type="button"
+            style={S.decline(answers[q.id] === PREFER_NOT_TO_DISCLOSE)}
+            aria-pressed={answers[q.id] === PREFER_NOT_TO_DISCLOSE}
+            onClick={() => setAnswer(q.id, answers[q.id] === PREFER_NOT_TO_DISCLOSE ? '' : PREFER_NOT_TO_DISCLOSE)}
+          >
+            {PREFER_NOT_TO_DISCLOSE}
+          </button>
+        )}
+        {q.detail && (
+          <>
+            <label style={S.detailLabel}>{q.detail.text}</label>
+            <AnswerField key={q.detail.id} question={q.detail} value={answers[q.detail.id] ?? ''} onChange={v => setAnswer(q.detail!.id, v)} autoFocus={false} />
+          </>
+        )}
         <p style={S.validationMsg}>{validation}</p>
         <div style={S.row}>
           {step > 1 && (

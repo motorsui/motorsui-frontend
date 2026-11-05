@@ -2,11 +2,16 @@
 
 import { useState, useCallback } from 'react'
 import {
+  RELATIONAL_INDEPENDENT_COMPLETION,
   RELATIONAL_INTRO,
   RELATIONAL_PRODUCT_LINE,
   RELATIONAL_QUESTION_LIST,
   RELATIONAL_SECTIONS,
   RELATIONAL_PERSON_B_SECTION,
+  RELATIONAL_QUESTIONNAIRE_VERSION,
+  firstUnansweredRelationalIndex,
+  isRelationalQuestionAnswered,
+  relationalIntakeVersion,
   type IntakeQuestion,
 } from '@/lib/intake-questions'
 
@@ -19,17 +24,21 @@ RELATIONAL_SECTIONS.forEach(section => {
   })
 })
 
+const TOTAL        = RELATIONAL_QUESTION_LIST.length
+const CONFIRM_STEP = TOTAL + 1
+const LEGACY_STEP  = -2
+
 function computeInitialStep(initialAnswers?: Record<string, string>): number {
   if (!initialAnswers) return -1
-  const allQIds = RELATIONAL_QUESTION_LIST.map(q => q.id)
-  const allAnswered = allQIds.every(id => (initialAnswers[id] ?? '').trim() !== '')
-  if (allAnswered) return 43
+  // Answers begun on an earlier version are kept as they are, never carried into v2 wording.
+  const version = relationalIntakeVersion(initialAnswers)
+  if (version && version !== RELATIONAL_QUESTIONNAIRE_VERSION) return LEGACY_STEP
   const hasBirthData = (initialAnswers['r_name'] ?? '').trim() !== ''
-  if (hasBirthData) {
-    const firstUnanswered = allQIds.findIndex(id => (initialAnswers[id] ?? '').trim() === '')
-    return firstUnanswered === -1 ? 43 : firstUnanswered + 1
-  }
-  return -1
+  if (!hasBirthData) return -1
+  // The form is shown only before submission, so a fully answered intake
+  // resumes on the last question, where it can still be submitted.
+  const firstUnanswered = firstUnansweredRelationalIndex(initialAnswers)
+  return firstUnanswered === -1 ? TOTAL : firstUnanswered + 1
 }
 
 async function autosave(chartId: string, answers: Record<string, string>) {
@@ -392,10 +401,9 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
   }
 
   function validateQuestion(q: IntakeQuestion): string | null {
-    if (!q.required) return null
+    if (!isRelationalQuestionAnswered(q, answers)) return 'Please answer this question before continuing.'
     const val = (answers[q.id] ?? '').trim()
-    if (!val) return 'Please answer this question before continuing.'
-    if (q.type === 'number') {
+    if (q.type === 'number' && val) {
       const n = Number(val)
       if (isNaN(n) || n < 1 || n > 10) return 'Please enter a number between 1 and 10.'
     }
@@ -434,7 +442,7 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
         // No path once the partner's intake is already submitted.
         const link = data.partner_intake_path ? `${origin}${data.partner_intake_path}` : ''
         setPartnerLink(link)
-        setStep(43)
+        setStep(CONFIRM_STEP)
         scrollTop()
         await onComplete(pid, link)
       } catch (e) {
@@ -448,6 +456,20 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
     }
   }
 
+  // ── Earlier-version intake (step = -2) ─────────────────────────────────────
+
+  if (step === LEGACY_STEP) {
+    return (
+      <div style={S.page}>
+        <div style={S.inner}>
+          <p style={S.eyebrow}>MOTORSUI</p>
+          <h1 style={S.heading}>This intake was started on an earlier version of the questionnaire.</h1>
+          <p style={S.subtitle}>Your earlier answers are saved and unchanged. Please contact MotorSui to continue.</p>
+        </div>
+      </div>
+    )
+  }
+
   // ── Intro screen (step = -1) ───────────────────────────────────────────────
 
   if (step === -1) {
@@ -455,8 +477,9 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
       <div style={S.page}>
         <div style={S.inner}>
           <p style={S.eyebrow}>MOTORSUI</p>
-          <h1 style={S.heading}>Relational Intake Form</h1>
+          <h1 style={S.heading}>Relationship Intake Questionnaire</h1>
           <p style={S.subtitle}>{RELATIONAL_PRODUCT_LINE}</p>
+          <p style={S.introPara}>{RELATIONAL_INDEPENDENT_COMPLETION}</p>
           <p style={S.introPara}>{RELATIONAL_INTRO}</p>
           <button style={S.btnPrimary} onClick={() => { setStep(0); scrollTop() }}>
             Begin
@@ -502,9 +525,9 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
     )
   }
 
-  // ── Confirmation screen (step = 43) ───────────────────────────────────────
+  // ── Confirmation screen (step = TOTAL + 1) ────────────────────────────────
 
-  if (step === 43) {
+  if (step === CONFIRM_STEP) {
     return (
       <div style={S.page}>
         <div style={S.inner}>
@@ -540,13 +563,13 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
     )
   }
 
-  // ── Question screens (steps 1-42) ─────────────────────────────────────────
+  // ── Question screens (steps 1-TOTAL) ──────────────────────────────────────
 
   const qIndex = step - 1
   const q = RELATIONAL_QUESTION_LIST[qIndex]
   const sectionTitle = questionSectionMap[q.id] ?? ''
-  const isLast = step === 42
-  const pct = Math.round((step / 42) * 100)
+  const isLast = step === TOTAL
+  const pct = Math.round((step / TOTAL) * 100)
 
   return (
     <div style={S.page}>
@@ -554,7 +577,7 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
         <div style={S.progressFill(pct)} />
       </div>
       <div style={S.inner}>
-        <p style={S.stepLabel}>Question {step} of 42</p>
+        <p style={S.stepLabel}>Question {step} of {TOTAL}</p>
         {sectionTitle && <p style={S.sectionTitle}>{sectionTitle}</p>}
         <p style={S.questionText}>{q.text}</p>
         <QuestionField question={q} value={answers[q.id] ?? ''} onChange={v => setAnswer(q.id, v)} />

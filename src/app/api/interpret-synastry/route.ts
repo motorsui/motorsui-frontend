@@ -6,6 +6,8 @@ import {
   birthFromChartJson, configureSystemDoc, fetchCalculation, fetchGoverningDoc, findOrCreatePairRow,
   generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
 } from '@/lib/interpret/backend'
+import { buildPairIntakePayload } from '@/lib/intake-questions'
+import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
 
 // ─── Loving Astro (synastry) ──────────────────────────────────────────────────
 //
@@ -249,6 +251,7 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
     `The calculated compatibility signals for the pair are in compatibility. ` +
     `Speak directly to Person A in second person. ` +
     `Reference Person B by name if a name is available in the birth data, otherwise as your partner. ` +
+    `Person B's intake answers inform the reading but stay confidential: never quote, paraphrase or attribute any of them. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
     SELF_REVIEW + ' ' +
@@ -291,7 +294,13 @@ export async function POST(request: NextRequest) {
   const birthA = birthFromChartJson(self.chart_json)
   const birthB = birthFromChartJson(partner.chart_json)
   if (!birthA || !birthB) return jsonError('Chart has no usable birth data', 422)
-  const intake = (self.intake_relational as Record<string, unknown> | null) ?? null
+  // Each partner's answers travel with their own question wording and version,
+  // under the same person_a / person_b labels as the chart payload. Nothing is
+  // generated until both partners have submitted.
+  const partnerAnswers = await loadSubmittedPartnerAnswers(createAdminClient(), String(partner.id))
+  const intake = buildPairIntakePayload(self, partnerAnswers)
+  if (!intake) return jsonError('Both partners must submit their intake before the reading is generated', 409)
+  const intakeA = intake.person_a as Record<string, unknown>
 
   const admin = createAdminClient()
   const row   = await findOrCreatePairRow(admin, TABLE, String(self.id), String(partner.id))
@@ -310,7 +319,7 @@ export async function POST(request: NextRequest) {
       fetchGoverningDoc('CLAUDE_CORE_SYNASTRY.md'),
       fetchGoverningDoc('CLAUDE_CORE_OUTER_PLANETS.md'),
       fetchCalculation('/astrology/synastry', { person1: birthA, person2: birthB }),
-      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake, true) : Promise.resolve(null),
+      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intakeA, true) : Promise.resolve(null),
     ])
     const configured = configureSystemDoc(systemDoc, {
       product:       'synastry',
@@ -322,7 +331,7 @@ export async function POST(request: NextRequest) {
     })
     const payload = buildSynastryPayload(self.chart_json, partner.chart_json)
     payload.compatibility = compatibility
-    if (intake)      payload.intake = intake
+    payload.intake = intake
     // Astrology-only product: no HD or Gene Keys signals in the conclusions.
     if (conclusions) payload.domain_conclusions = jyotishOnlyConclusions(conclusions)
     return {

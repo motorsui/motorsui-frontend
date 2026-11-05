@@ -8,6 +8,7 @@ import {
   writeSection, InterpretFailure,
 } from '@/lib/interpret/backend'
 import { NATAL_COLUMNS } from '@/lib/interpret/sections'
+import { buildSelfIntakePayload } from '@/lib/intake-questions'
 
 // ─── Products served by this route ───────────────────────────────────────────
 //
@@ -125,7 +126,8 @@ export async function POST(request: NextRequest) {
   if (!chart) return jsonError('Chart not found', 404)
   const birth = birthFromChartJson(chart.chart_json)
   if (!birth) return jsonError('Chart has no usable birth data', 422)
-  const intake = (chart.intake_self as Record<string, unknown> | null) ?? null
+  // Each answer travels with its question wording and the version it was answered under.
+  const intake = buildSelfIntakePayload(chart.intake_self)
 
   const offered = [
     ...(product.natal   ? NATAL_COLUMNS : []),

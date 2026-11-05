@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
 import HdCompositeProductClient from './HdCompositeProductClient'
 
 export default async function HdCompositeProductPage() {
@@ -31,26 +32,31 @@ export default async function HdCompositeProductPage() {
   const hasIntake = chart.intake_relational_complete === true
 
   // Pair rows have no RLS select policy; they are read server-side, keyed by the
-  // caller's own chart ids.
+  // caller's own chart ids. Only the partner chart's id reaches the client.
   const admin = createAdminClient()
   let partnerChart = null
   let compositeRow = null
 
   if (chart.partner_chart_id) {
-    const { data: pc } = await supabase.from('charts').select('*').eq('id', chart.partner_chart_id as string).maybeSingle()
+    const { data: pc } = await supabase.from('charts').select('id').eq('id', chart.partner_chart_id as string).maybeSingle()
     partnerChart = pc
     if (pc) {
       const { data: cr } = await admin.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
       compositeRow = cr
     }
   } else if (hasIntake) {
-    const { data: pc } = await supabase.from('charts').select('*').eq('user_id', user.id).eq('chart_label', 'partner').maybeSingle()
+    const { data: pc } = await supabase.from('charts').select('id').eq('user_id', user.id).eq('chart_label', 'partner').maybeSingle()
     if (pc) {
       partnerChart = pc
       const { data: cr } = await admin.from('hd_composite_interpretations').select('*').eq('chart_id_a', chart.id as string).eq('chart_id_b', pc.id as string).maybeSingle()
       compositeRow = cr
     }
   }
+
+  // Only whether the partner has submitted reaches the client, never their answers.
+  const partnerIntakeComplete = partnerChart
+    ? await partnerIntakeSubmitted(admin, String((partnerChart as { id: unknown }).id))
+    : false
 
   return (
     <HdCompositeProductClient
@@ -60,6 +66,7 @@ export default async function HdCompositeProductPage() {
       tier={tier}
       hasIntake={hasIntake}
       hasPartnerChart={!!partnerChart}
+      partnerIntakeComplete={partnerIntakeComplete}
     />
   )
 }

@@ -70,7 +70,7 @@ test('astrology products request Jyotish-only scoring; others do not', async () 
 
 test('Loving Astro and D-Charts pass jyotishOnly; Loving HD keeps the default', () => {
   const route = f => readFileSync(new URL(`../src/app/api/${f}/route.ts`, import.meta.url), 'utf8')
-  assert.match(route('interpret-synastry'), /fetchDomainConclusions\(conclusionBirth, 'relational', intake, true\)/)
+  assert.match(route('interpret-synastry'), /fetchDomainConclusions\(conclusionBirth, 'relational', intakeA, true\)/)
   assert.match(route('interpret'), /fetchDomainConclusions\(birth as never, 'self', intake, true\)/)
-  assert.match(route('interpret-composite'), /fetchDomainConclusions\(conclusionBirth, 'relational', intake\)/)
+  assert.match(route('interpret-composite'), /fetchDomainConclusions\(conclusionBirth, 'relational', intakeA\)/)
 })

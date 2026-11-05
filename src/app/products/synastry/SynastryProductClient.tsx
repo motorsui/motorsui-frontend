@@ -29,6 +29,7 @@ interface SynastryProductClientProps {
   tier:               number
   hasIntake:          boolean
   hasPartnerChart:    boolean
+  partnerIntakeComplete: boolean
 }
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
@@ -129,6 +130,7 @@ export default function SynastryProductClient({
   synastryRow: initialSynastryRow,
   hasIntake: initialHasIntake,
   hasPartnerChart: initialHasPartnerChart,
+  partnerIntakeComplete,
 }: SynastryProductClientProps) {
   const supabase = createClient()
   const [synastryRow, setSynastryRow] = useState<SynastryRow | null>(initialSynastryRow)
@@ -153,7 +155,7 @@ export default function SynastryProductClient({
   const fetchPartnerChart = useCallback(async () => {
     const { data } = await supabase
       .from('charts')
-      .select('*')
+      .select('id')
       .eq('user_id', (initialChart.user_id as string))
       .eq('chart_label', 'partner')
       .maybeSingle()
@@ -161,7 +163,8 @@ export default function SynastryProductClient({
   }, [supabase, initialChart.user_id])
 
   useEffect(() => {
-    if (!intakeComplete || !partnerChartReady) return
+    // Nothing is generated until both partners have submitted.
+    if (!intakeComplete || !partnerChartReady || !partnerIntakeComplete) return
 
     const pid = (partnerChart?.id as string | undefined) ?? ''
     if (!pid) return
@@ -210,7 +213,7 @@ export default function SynastryProductClient({
     stream()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intakeComplete, partnerChartReady])
+  }, [intakeComplete, partnerChartReady, partnerIntakeComplete])
 
   if (phase === 'form') {
     return (
@@ -236,6 +239,17 @@ export default function SynastryProductClient({
           <p style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '12px', color: 'rgba(244,241,232,0.7)', wordBreak: 'break-all' }}>
             Send this link to your partner to complete their intake: <a href={partnerLink} style={{ color: '#9a7c2e' }}>{partnerLink}</a>
           </p>
+        )}
+        {!partnerIntakeComplete && (
+          <div style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'Georgia, serif', fontSize: '15px', color: 'rgba(244,241,232,0.7)', lineHeight: 1.7 }}>
+            <p>Your intake is submitted. Your reading generates after your partner submits theirs.</p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ marginTop: '12px', backgroundColor: 'transparent', color: '#9a7c2e', border: '1px solid rgba(154,124,46,0.4)', borderRadius: '3px', padding: '10px 20px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '11px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              Check again
+            </button>
+          </div>
         )}
         <SynastryReport synastryRow={synastryRow} />
       </div>

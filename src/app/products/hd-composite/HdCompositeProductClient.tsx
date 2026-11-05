@@ -26,6 +26,7 @@ interface HdCompositeProductClientProps {
   tier:            number
   hasIntake:       boolean
   hasPartnerChart: boolean
+  partnerIntakeComplete: boolean
 }
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
@@ -98,6 +99,7 @@ export default function HdCompositeProductClient({
   compositeRow: initialCompositeRow,
   hasIntake: initialHasIntake,
   hasPartnerChart: initialHasPartnerChart,
+  partnerIntakeComplete,
 }: HdCompositeProductClientProps) {
   const supabase = createClient()
   const [compositeRow, setCompositeRow] = useState<CompositeRow | null>(initialCompositeRow)
@@ -121,12 +123,13 @@ export default function HdCompositeProductClient({
   }, [])
 
   const fetchPartnerChart = useCallback(async () => {
-    const { data } = await supabase.from('charts').select('*').eq('user_id', String(initialChart.user_id)).eq('chart_label', 'partner').maybeSingle()
+    const { data } = await supabase.from('charts').select('id').eq('user_id', String(initialChart.user_id)).eq('chart_label', 'partner').maybeSingle()
     if (data) { setPartnerChart(data as Record<string, unknown>); setPartnerChartReady(true) }
   }, [supabase, initialChart.user_id])
 
   useEffect(() => {
-    if (!intakeComplete || !partnerChartReady) return
+    // Nothing is generated until both partners have submitted.
+    if (!intakeComplete || !partnerChartReady || !partnerIntakeComplete) return
     if (!partnerChart?.id) return
     let cancelled = false, completedCount = 0
 
@@ -163,7 +166,7 @@ export default function HdCompositeProductClient({
     stream()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intakeComplete, partnerChartReady])
+  }, [intakeComplete, partnerChartReady, partnerIntakeComplete])
 
   if (phase === 'form') {
     return (
@@ -189,6 +192,17 @@ export default function HdCompositeProductClient({
           <p style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '12px', color: 'rgba(244,241,232,0.7)', wordBreak: 'break-all' }}>
             Send this link to your partner to complete their intake: <a href={partnerLink} style={{ color: '#9a7c2e' }}>{partnerLink}</a>
           </p>
+        )}
+        {!partnerIntakeComplete && (
+          <div style={{ maxWidth: '860px', margin: '24px auto 0', padding: '0 24px', fontFamily: 'Georgia, serif', fontSize: '15px', color: 'rgba(244,241,232,0.7)', lineHeight: 1.7 }}>
+            <p>Your intake is submitted. Your reading generates after your partner submits theirs.</p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ marginTop: '12px', backgroundColor: 'transparent', color: '#9a7c2e', border: '1px solid rgba(154,124,46,0.4)', borderRadius: '3px', padding: '10px 20px', fontFamily: 'var(--font-raleway, sans-serif)', fontSize: '11px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              Check again
+            </button>
+          </div>
         )}
         <CompositeReport compositeRow={compositeRow} channels={channels} />
       </div>

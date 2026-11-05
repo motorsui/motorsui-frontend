@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
 import SynastryProductClient from './SynastryProductClient'
 
 export default async function SynastryProductPage() {
@@ -33,13 +34,14 @@ export default async function SynastryProductPage() {
 
   // Fetch partner chart if it exists. Both chart ids come from the caller's own
   // rows; the pair row itself is RLS-locked and read with the admin client.
+  // Only the partner chart's id reaches the client.
   let partnerChart = null
   let synastryRow = null
 
   if (chart.partner_chart_id) {
     const { data: pc } = await supabase
       .from('charts')
-      .select('*')
+      .select('id')
       .eq('id', chart.partner_chart_id as string)
       .maybeSingle()
     partnerChart = pc
@@ -57,7 +59,7 @@ export default async function SynastryProductPage() {
     // Intake was saved but partner_chart_id not on this chart row yet — look up by chart_label
     const { data: pc } = await supabase
       .from('charts')
-      .select('*')
+      .select('id')
       .eq('user_id', user.id)
       .eq('chart_label', 'partner')
       .maybeSingle()
@@ -73,6 +75,11 @@ export default async function SynastryProductPage() {
     }
   }
 
+  // Only whether the partner has submitted reaches the client, never their answers.
+  const partnerIntakeComplete = partnerChart
+    ? await partnerIntakeSubmitted(createAdminClient(), String((partnerChart as { id: unknown }).id))
+    : false
+
   return (
     <SynastryProductClient
       chart={chart as Record<string, unknown>}
@@ -81,6 +88,7 @@ export default async function SynastryProductPage() {
       tier={tier}
       hasIntake={hasIntake}
       hasPartnerChart={!!partnerChart}
+      partnerIntakeComplete={partnerIntakeComplete}
     />
   )
 }

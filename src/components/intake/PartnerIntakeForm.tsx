@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
+  RELATIONAL_INDEPENDENT_COMPLETION,
   RELATIONAL_INTRO,
   RELATIONAL_QUESTION_LIST,
+  firstUnansweredRelationalIndex,
   RELATIONAL_SECTIONS,
   type IntakeQuestion,
 } from '@/lib/intake-questions'
@@ -21,15 +23,36 @@ RELATIONAL_SECTIONS.forEach(section => {
 
 type SaveResult = 'ok' | 'rejected' | 'failed'
 
-// Answers save after every question. A 403/409 means the link is invalid,
-// expired or already used, so the form stops. Other failures are retried by
-// the next save, except on the final submit, which must succeed.
-async function partnerSave(partnerChartId: string, token: string, answers: Record<string, string>, complete = false): Promise<SaveResult> {
+// The session call claims the link for this browser (an httpOnly cookie) or,
+// if this browser already holds the claim, returns its saved answers.
+type SessionResult = { answers: Record<string, string> } | { error: string }
+
+async function partnerSession(partnerChartId: string, token: string): Promise<SessionResult> {
   try {
-    const res = await fetch('/api/save-partner-intake', {
+    const res  = await fetch('/api/partner-intake/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partner_chart_id: partnerChartId, token, answers, complete }),
+      body: JSON.stringify({ partner_chart_id: partnerChartId, token }),
+    })
+    const data = await res.json().catch(() => ({})) as { answers?: Record<string, string>; error?: string }
+    if (res.ok && data.answers) return { answers: data.answers }
+    if (res.status === 409) return { error: 'Your intake has already been submitted. You can close this page.' }
+    if (res.status === 403) return { error: data.error === 'This link has already been opened in another browser'
+      ? 'This link has already been opened in another browser. Continue your intake there.'
+      : 'This link is invalid, has expired or has already been used. Ask your partner for a new link.' }
+    return { error: 'Your intake could not be loaded. Please reload the page.' }
+  } catch { return { error: 'Your intake could not be loaded. Please reload the page.' } }
+}
+
+// Answers save after every question. A 403/409 means the claim is invalid,
+// expired or already used, so the form stops. Other failures are retried by
+// the next save, except on the final submit, which must succeed.
+async function partnerSave(partnerChartId: string, answers: Record<string, string>, complete = false): Promise<SaveResult> {
+  try {
+    const res = await fetch('/api/partner-intake/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partner_chart_id: partnerChartId, answers, complete }),
     })
     if (res.ok) return 'ok'
     return res.status === 403 || res.status === 409 ? 'rejected' : 'failed'
@@ -320,13 +343,32 @@ interface PartnerIntakeFormProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PartnerIntakeForm({ partnerChartId, token }: PartnerIntakeFormProps) {
-  // step -1 = intro, 1..42 = questions, 43 = confirmation
+  // step -1 = intro, 1..total = questions, total + 1 = confirmation
   const [step,    setStep]    = useState(-1)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [error,   setError]   = useState<string | null>(null)
+  const [session, setSession] = useState<'loading' | 'ready' | 'blocked'>('loading')
+  const [blocked, setBlocked] = useState('')
 
   const questions = RELATIONAL_QUESTION_LIST
-  const total     = questions.length // 42
+  const total     = questions.length
+
+  useEffect(() => {
+    let cancelled = false
+    partnerSession(partnerChartId, token).then(r => {
+      if (cancelled) return
+      if ('error' in r) { setBlocked(r.error); setSession('blocked'); return }
+      setAnswers(r.answers)
+      setSession('ready')
+    })
+    return () => { cancelled = true }
+  }, [partnerChartId, token])
+
+  // Resume: the first unanswered question, or the last one when all are answered but not submitted.
+  function beginStep(): number {
+    const first = firstUnansweredRelationalIndex(answers)
+    return first === -1 ? total : first + 1
+  }
 
   const setAnswer = useCallback((id: string, value: string) => {
     setAnswers(prev => ({ ...prev, [id]: value }))
@@ -359,14 +401,14 @@ export default function PartnerIntakeForm({ partnerChartId, token }: PartnerInta
 
     const q = currentQuestion()
     if (q) {
-      const saved = await partnerSave(partnerChartId, token, answers, step === total)
+      const saved = await partnerSave(partnerChartId, answers, step === total)
       if (saved === 'rejected') { setError('This link is invalid, has expired or has already been used. Ask your partner for a new link.'); return }
       if (saved === 'failed' && step === total) { setError('Your answers could not be submitted. Please try again.'); return }
     }
 
     if (step === total) {
       // Final question — save and go to confirmation
-      setStep(43)
+      setStep(total + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -385,6 +427,20 @@ export default function PartnerIntakeForm({ partnerChartId, token }: PartnerInta
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  // ── Loading / blocked ───────────────────────────────────────────────────────
+
+  if (session !== 'ready') {
+    return (
+      <div style={S.page}>
+        <div style={S.inner}>
+          <p style={S.eyebrow}>MOTORSUI</p>
+          <h1 style={S.heading}>Relationship Intake Questionnaire</h1>
+          <p style={S.subtitle}>{session === 'loading' ? 'Loading your intake…' : blocked}</p>
+        </div>
+      </div>
+    )
+  }
+
   // ── Intro screen ────────────────────────────────────────────────────────────
 
   if (step === -1) {
@@ -392,13 +448,14 @@ export default function PartnerIntakeForm({ partnerChartId, token }: PartnerInta
       <div style={S.page}>
         <div style={S.inner}>
           <p style={S.eyebrow}>MOTORSUI</p>
-          <h1 style={S.heading}>Relational Intake Form</h1>
+          <h1 style={S.heading}>Relationship Intake Questionnaire</h1>
           <p style={S.subtitle}>
             Complete your intake form below. Your partner has already submitted theirs.
           </p>
+          <p style={S.intro}>{RELATIONAL_INDEPENDENT_COMPLETION}</p>
           <p style={S.intro}>{RELATIONAL_INTRO}</p>
-          <button style={S.btnPrimary} onClick={() => setStep(1)}>
-            Begin
+          <button style={S.btnPrimary} onClick={() => setStep(beginStep())}>
+            {beginStep() > 1 ? 'Continue' : 'Begin'}
           </button>
         </div>
       </div>
@@ -407,7 +464,7 @@ export default function PartnerIntakeForm({ partnerChartId, token }: PartnerInta
 
   // ── Confirmation screen ─────────────────────────────────────────────────────
 
-  if (step === 43) {
+  if (step === total + 1) {
     return (
       <div style={S.page}>
         <div style={S.inner}>

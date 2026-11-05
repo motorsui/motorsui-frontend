@@ -1,0 +1,137 @@
+PARENTING BY DESIGN
+
+Parent and Child Intake Questionnaire
+
+SECTION 1 — FAMILY AND CHILD CONTEXT
+
+1. [p1] Describe your child, not who you want them to be, but who they actually are right now.
+
+2. [p3] What do you understand about your child that you feel most people miss or misread?
+
+3. [p4] What is your relationship to this child?
+
+Dropdown: Biological Parent; Adoptive Parent; Step-Parent; Guardian; Foster Parent; Mentor/Coach.
+
+4. [p5 + p6 MERGED] What is your current living arrangement as it relates to this child, and who predominantly lives in the child’s household?
+
+Living arrangement dropdown: Full Time in Two Parent Household; Full Time in One Parent Household; Primary Split; Non-Primary Split; No Custody; Other.
+
+Additional text field: Identify the people who predominantly live with or care for the child.
+
+5. [p14] Does your child have siblings? If yes, describe their position in the sibling order and the quality of those relationships. If no, describe what that absence has been like for them.
+
+SECTION 2 — IDENTITY AND TEMPERAMENT
+
+6. [p7] How would you describe your child’s baseline temperament, their default way of moving through the world when nothing is activating them?
+
+7. [p8] Is your child more introverted or extroverted, do they refuel through solitude or through connection?
+
+8. [p10] How does your child handle change, transition, or the unexpected?
+
+9. [p11] What does your child do when they are overwhelmed, do they shut down, escalate, withdraw, or seek contact?
+
+SECTION 3 — INTERESTS, JOY, AND NATURAL INTELLIGENCE
+
+10. [p12 + p13 MERGED] What brings your child genuine joy, curiosity, or excitement? What activities, subjects, or experiences are they naturally drawn toward, and what do you notice about their behavior when they are fully engaged?
+
+11. [p15] How does your child learn best, through doing, through reading, through conversation, through observation, or through movement?
+
+12. [p16] Where does your child show natural intelligence or insight that surprises you?
+
+13. [p17] Where does your child struggle in learning environments and what do you think is underneath that struggle?
+
+14. [p18] How does your child respond to instruction, correction, or being told they are wrong?
+
+15. [p20] Does your child have a diagnosed learning difference, sensory sensitivity, or developmental pattern you want the reading to hold?
+
+Optional.
+
+SECTION 4 — EMOTIONAL EXPRESSION AND REGULATION
+
+16. [p19 + p24 MERGED] When your child becomes emotionally overwhelmed or distressed, what helps them return to balance most reliably? Do they need physical closeness, reassurance, words, space, movement, distraction, or something else? How do they communicate that need to you?
+
+17. [p21 + p39 MERGED] How does your child typically express their emotions through their behavior, communication, and physical responses? Describe the emotional or behavioral patterns you observe most frequently, particularly when they are excited, frustrated, disappointed, or overwhelmed.
+
+18. [p22] What emotions are easiest for your child to express and what emotions do they seem to hold back or suppress?
+
+19. [p23] How long does it typically take your child to recover after emotional activation, minutes, hours, or longer?
+
+20. [p25] What has been your relationship to managing or holding their emotional behaviors?
+
+21. [p26] Does your child carry anxiety, sadness, anger, or fear in a way that concerns you? Describe what that looks like in their body and behavior.
+
+Optional.
+
+22. [p27] Does your child show any orientation toward mystery, meaning, or something larger than everyday life, a spiritual sensitivity, philosophical curiosity, or unusual depth for their age?
+
+SECTION 5 — SOCIAL AND ATTACHMENT PATTERNS
+
+23. [p31] How does your child move in social environments, do they lead, observe, attach to one person, or float between groups?
+
+24. [p32] What is the quality of your child’s closest friendships, deep and few, wide and surface, or somewhere between?
+
+25. [p33] How does your child handle conflict with peers, do they confront, avoid, appease, or withdraw?
+
+26. [p35] Does your child generally seek you for comfort? Describe why or why not from your perspective.
+
+SECTION 6 — SOMATIC AND PHYSICAL EXPRESSION
+
+27. [p36] How does your child inhabit their body, are they physically confident, physically cautious, sensory-seeking, or sensory-avoidant?
+
+28. [p37] Does your child have any chronic physical patterns, sleep disruption, digestive sensitivity, hyperactivity, fatigue, or pain, that feel connected to how they are living emotionally?
+
+Optional.
+
+29. [p38] How does your child use physical movement, is it regulatory, expressive, compulsive, or avoided?
+
+SECTION 7 — THE PARENT-CHILD RELATIONSHIP
+
+30. [p28 + p44 MERGED] What behaviors demonstrated by your child trigger you most strongly? When those behaviors arise, what happens emotionally, psychologically, or physically within you? Do you recognize any connection to unresolved experiences, familiar patterns, wounds, or younger versions of yourself?
+
+31. [p29] When your child resists you, what is your first reaction and your second reaction? Explain your psychological interpretation of each.
+
+32. [p30] How do you typically repair after conflict or rupture with your child, and how does your child usually respond?
+
+33. [p40 + p48 MERGED] What situations or experiences seem most nourishing to your child when they are with you? When do you personally feel closest to your child, and what do you notice about the quality of your connection during those moments?
+
+34. [p42 + p55 MERGED] What is the most challenging aspect of parenting this specific child? Describe the situations in which you feel most unsure, overwhelmed, emotionally activated, or unable to maintain your footing. What happens within you during those moments?
+
+35. [p49] When do you feel most distant from your child?
+
+36. [p50] If there is any behavioral conflict with the other parent, describe it.
+
+Optional.
+
+37. [p51] Are you noticing repeated themes or cycles with your child, bigger than behavior?
+
+SECTION 8 — PARENTAL CONDITIONING AND PROJECTION
+
+38. [p43] What worries you most about your child’s future?
+
+39. [p45] Is there anything you secretly hope your child becomes, achieves, or avoids because of your own life experience?
+
+40. [p46] What do you most want to give this child that you did not receive?
+
+41. [p47] What do you know about this child’s grandparents, one defining quality or central struggle from each line, and what from that generation do you feel living in this child?
+
+SECTION 9 — PARENTING AWARENESS AND ATTACHMENT
+
+42. [p52 + p53 MERGED] How would you describe the parent you actually are in day-to-day life, particularly when you are tired, stressed, challenged, or emotionally activated? How does that compare with the kind of parent you believe yourself to be at your core?
+
+43. [p54] What do you feel most confident in within your parenting, and why?
+
+44. [p56] What part of your own design, nature, or needs do you understand intellectually but struggle to trust or live by consistently as a parent?
+
+45. [p57 REVISED] When your child needs reassurance, closeness, independence, or emotional support, how do you typically respond? Describe what happens within you when your child seeks connection, resists your guidance, withdraws, or expresses difficult emotions. Are there patterns in your responses that you recognize from your own attachment experiences?
+
+46. [p58 REVISED] When your child feels distressed, uncertain, rejected, or separated from you, how do they typically respond? Do they seek closeness, become more independent, withdraw, become anxious, resist comfort, or respond in another way? How do they behave when connection is restored?
+
+47. [p59] When decisions need to be made for your child around structure, limits, routines, or direction, what feels most challenging or unclear for you?
+
+48. [p60] Are there ways you worry you might be over-guiding, under-guiding, or unintentionally shaping who your child should be?
+
+SECTION 10 — INTENTIONS AND INTEGRATION
+
+49. [p63 + p65 MERGED] What do you most want this reading to help you understand about your child, yourself, or your relationship together? Where are you seeking greater clarity, and what would you hope to see or approach differently as a parent?
+
+50. [p64] What answer are you afraid this reading might give you about your child or your parenting?

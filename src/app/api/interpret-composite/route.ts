@@ -7,6 +7,8 @@ import {
   generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
   InterpretFailure,
 } from '@/lib/interpret/backend'
+import { buildPairIntakePayload } from '@/lib/intake-questions'
+import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
 
 // ─── Loving HD (composite) ────────────────────────────────────────────────────
 //
@@ -249,6 +251,7 @@ function buildCompositeUserMessage(
     `The calculated composite and compatibility signals for the pair are in composite. ` +
     `Speak directly to Person A in second person. ` +
     `Reference Person B by name if a name is available in the birth data, otherwise as your partner. ` +
+    `Person B's intake answers inform the reading but stay confidential: never quote, paraphrase or attribute any of them. ` +
     `Do not reference mechanics or data that belong to other sections. ` +
     `No bullet points. No markdown. No asterisks. No em dashes. ` +
     `No hedging language. No textbook definitions. ` +
@@ -400,7 +403,13 @@ export async function POST(request: NextRequest) {
 
   const body  = await request.json().catch(() => ({})) as { columns?: unknown }
   const asked = Array.isArray(body.columns) ? new Set(body.columns.map(String)) : null
-  const intake = (self.intake_relational as Record<string, unknown> | null) ?? null
+  // Each partner's answers travel with their own question wording and version,
+  // under the same person_a / person_b labels as the chart payload. Nothing is
+  // generated until both partners have submitted.
+  const partnerAnswers = await loadSubmittedPartnerAnswers(createAdminClient(), String(partner.id))
+  const intake = buildPairIntakePayload(self, partnerAnswers)
+  if (!intake) return jsonError('Both partners must submit their intake before the reading is generated', 409)
+  const intakeA = intake.person_a as Record<string, unknown>
 
   const p = await plan(birthA, birthB)
   if (p instanceof Response) return p
@@ -430,7 +439,7 @@ export async function POST(request: NextRequest) {
       fetchGoverningDoc('CLAUDE_SYSTEM.md'),
       fetchGoverningDoc('CLAUDE_HD_COMPOSITE.md'),
       fetchGoverningDoc('CLAUDE_CORE_COMPOSITE.md'),
-      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intake) : Promise.resolve(null),
+      conclusionBirth ? fetchDomainConclusions(conclusionBirth, 'relational', intakeA) : Promise.resolve(null),
     ])
     const configured = configureSystemDoc(systemDoc, {
       product:       'hd_composite',
@@ -441,7 +450,7 @@ export async function POST(request: NextRequest) {
       classicalOnly: false,
     })
     const payload = buildCompositeHDPayload(self.chart_json, partner.chart_json, composite)
-    if (intake)      payload.intake = intake
+    payload.intake = intake
     // Score summary only, as on main. The full conclusions object carries
     // Jyotish evidence (headline signals, planets, houses, dignities) that
     // CLAUDE_CORE_COMPOSITE.md excludes from this product.

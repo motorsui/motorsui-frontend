@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { extractBirthPayload } from '@/lib/interpret/domain-conclusions'
+import { buildParentingIntakePayload } from '@/lib/intake-questions'
 
 // ─── Backend access ───────────────────────────────────────────────────────────
 //
@@ -389,6 +390,7 @@ export async function resolveParenting(
   // Child's chart only: the parent's row supplies ownership and the intake, never birth data.
   const childBirth = birthFromChartJson(child.chart_json)
   if (!childBirth) return jsonError('Chart has no usable birth data', 422)
-  const intake = (parent.intake_parenting as Record<string, unknown> | null) ?? null
+  // Each answer travels with its question wording and the version it was answered under.
+  const intake = buildParentingIntakePayload(parent.intake_parenting)
   return { row: child, body: section => ({ child: childBirth, section, intake }) }
 }

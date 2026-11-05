@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { backendProductRoute, birthFromChartJson, loadOwnedChart, jsonError } from '@/lib/interpret/backend'
 import { HD_COLUMNS } from '@/lib/interpret/sections'
+import { buildSelfIntakePayload } from '@/lib/intake-questions'
 
 // ─── Embody HD ────────────────────────────────────────────────────────────────
 //
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
       if (!chart) return jsonError('Chart not found', 404)
       const birth = birthFromChartJson(chart.chart_json)
       if (!birth) return jsonError('Chart has no usable birth data', 422)
-      const intake = (chart.intake_self as Record<string, unknown> | null) ?? null
+      // Each answer travels with its question wording and the version it was answered under.
+      const intake = buildSelfIntakePayload(chart.intake_self)
       return { row: chart, body: section => ({ birth, section, intake }) }
     },
   })
