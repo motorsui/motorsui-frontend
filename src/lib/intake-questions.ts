@@ -1045,11 +1045,10 @@ export function buildRelationalIntakePayload(intake: unknown, withBirthData: boo
 }
 
 // The pair's intake for Products 5-6, labelled to match the chart payload
-// (person_a = the purchaser's own chart, person_b = the partner chart). Partner
-// B's answers are included only once Partner B has submitted.
-// Both submitted intakes, or null until both partners have submitted. Partner
-// B's answers come from partner_relational_intakes (loadSubmittedPartnerAnswers),
-// never from the partner chart row.
+// (person_a = the purchaser's own chart, person_b = the partner chart), or null
+// until both partners have submitted. Partner B's answers come from
+// partner_relational_intakes (loadSubmittedPartnerAnswers), never from the
+// partner chart row.
 export function buildPairIntakePayload(
   self: Record<string, unknown>,
   partnerAnswers: Record<string, unknown> | null,

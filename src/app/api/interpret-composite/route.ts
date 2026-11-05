@@ -8,8 +8,8 @@ import {
   InterpretFailure,
 } from '@/lib/interpret/backend'
 import { buildPairIntakePayload } from '@/lib/intake-questions'
-import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
-import { lovingByDesignClosed } from '@/lib/product-availability'
+import { loadSubmittedPartnerAnswers } from '@/lib/partner-access'
+import { lovingByDesignClosed, lovingByDesignReadingsClosed } from '@/lib/product-availability'
 
 // ─── Loving HD (composite) ────────────────────────────────────────────────────
 //
@@ -402,6 +402,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const closed = lovingByDesignClosed()
   if (closed) return closed
+  const readingsClosed = lovingByDesignReadingsClosed()
+  if (readingsClosed) return readingsClosed
   const ctx = await resolve()
   if (ctx instanceof Response) return ctx
   const { self, partner, birthA, birthB } = ctx

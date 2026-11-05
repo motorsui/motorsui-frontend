@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import Header from '@/components/layout/Header'
 import CheckoutButton from '@/components/ui/CheckoutButton'
-import { LOVING_BY_DESIGN_AVAILABLE, LOVING_BY_DESIGN_PRODUCTS } from '@/lib/product-availability'
+import { LOVING_BY_DESIGN_AVAILABLE, LOVING_BY_DESIGN_PRODUCTS, lovingByDesignPurchasable } from '@/lib/product-availability'
 
 interface Product {
   key:         string
@@ -112,17 +112,19 @@ export default async function ProductsPage() {
           {PRODUCTS.map((product) => {
             const closed = !LOVING_BY_DESIGN_AVAILABLE && LOVING_BY_DESIGN_PRODUCTS.includes(product.key)
             const owned  = !closed && purchased.includes(product.key)
+            // The questionnaire can open before checkout does.
+            const unsold = !owned && LOVING_BY_DESIGN_PRODUCTS.includes(product.key) && !lovingByDesignPurchasable()
 
             return (
               <div key={product.key} className={row}>
                 <div>
                   <p className={`${tag} ${owned ? 'text-[#9a7c2e]' : 'text-[#9a7c2e]/70'} mb-3`}>
-                    {closed ? 'Not yet available' : owned ? 'Purchased' : 'Paid · Unlock'}
+                    {closed || unsold ? 'Not yet available' : owned ? 'Purchased' : 'Paid · Unlock'}
                   </p>
                   <h2 className={h2}>{product.name}</h2>
                 </div>
                 <p className={body}>{product.description}</p>
-                {closed ? null : owned ? (
+                {closed || unsold ? null : owned ? (
                   <Link href={product.href} className={btn}>
                     View Report
                   </Link>

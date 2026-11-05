@@ -7,8 +7,8 @@ import {
   generateDirect, hasEntitlement, isMissing, jsonError, loadOwnedPair, sectionStream, writeRow,
 } from '@/lib/interpret/backend'
 import { buildPairIntakePayload } from '@/lib/intake-questions'
-import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
-import { lovingByDesignClosed } from '@/lib/product-availability'
+import { loadSubmittedPartnerAnswers } from '@/lib/partner-access'
+import { lovingByDesignClosed, lovingByDesignReadingsClosed } from '@/lib/product-availability'
 
 // ─── Loving Astro (synastry) ──────────────────────────────────────────────────
 //
@@ -285,6 +285,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const closed = lovingByDesignClosed()
   if (closed) return closed
+  const readingsClosed = lovingByDesignReadingsClosed()
+  if (readingsClosed) return readingsClosed
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return jsonError('Unauthorized', 401)

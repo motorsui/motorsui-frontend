@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getStripe, allPriceIds } from '@/lib/stripe'
+import { lovingByDesignPriceIds, lovingByDesignPurchasable } from '@/lib/product-availability'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -17,6 +18,10 @@ export async function POST(request: NextRequest) {
   const allowed = allPriceIds()
   if (allowed.length > 0 && !allowed.includes(priceId)) {
     return NextResponse.json({ error: 'Unknown price' }, { status: 400 })
+  }
+
+  if (!lovingByDesignPurchasable() && lovingByDesignPriceIds().includes(priceId)) {
+    return NextResponse.json({ error: 'This product is not yet available' }, { status: 403 })
   }
 
   const origin = request.headers.get('origin') ?? 'https://motorsui.com'

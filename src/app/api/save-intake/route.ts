@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { mintPartnerToken, partnerIntakePath } from '@/lib/partner-intake-token'
-import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
 import { lovingByDesignClosed } from '@/lib/product-availability'
 import {
   PARENTING_QUESTIONNAIRE_VERSION,
@@ -255,23 +253,6 @@ export async function POST(request: NextRequest) {
       partnerChartId = newId
     }
 
-    // Share-link token for the partner's own intake. A new submit replaces
-    // the stored hash, so only the newest link works. None once the partner
-    // has submitted (partner_relational_intakes).
-    let partnerIntakePathValue: string | null = null
-    if (!(await partnerIntakeSubmitted(adminSupa, partnerChartId))) {
-      const { token, hash, expiresAt } = mintPartnerToken()
-      const { error: tokenError } = await adminSupa
-        .from('charts')
-        .update({ partner_intake_token_hash: hash, partner_intake_token_expires_at: expiresAt })
-        .eq('id', partnerChartId)
-      if (tokenError) {
-        console.error('[save-intake] partner token update failed:', tokenError)
-        return NextResponse.json({ error: 'Failed to create partner link' }, { status: 500 })
-      }
-      partnerIntakePathValue = partnerIntakePath(partnerChartId, token)
-    }
-
     // Save intake + partner_chart_id to user's chart.
     // intake_relational_complete gates Products 5-6 — set only on final submit, not autosave.
     const { error: updateError } = await adminSupa
@@ -284,7 +265,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save intake' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, partner_chart_id: partnerChartId, partner_intake_path: partnerIntakePathValue })
+    return NextResponse.json({ success: true, partner_chart_id: partnerChartId })
   }
 
   // ─── Parenting intake (Products 7-8) ─────────────────────────────────────

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
-import { LOVING_BY_DESIGN_AVAILABLE } from '@/lib/product-availability'
+import { partnerIntakeSubmitted } from '@/lib/partner-access'
+import { LOVING_BY_DESIGN_AVAILABLE, LOVING_BY_DESIGN_READINGS_AVAILABLE } from '@/lib/product-availability'
 import SynastryProductClient from './SynastryProductClient'
 
 export default async function SynastryProductPage() {
@@ -91,6 +91,7 @@ export default async function SynastryProductPage() {
       hasIntake={hasIntake}
       hasPartnerChart={!!partnerChart}
       partnerIntakeComplete={partnerIntakeComplete}
+      readingsAvailable={LOVING_BY_DESIGN_READINGS_AVAILABLE}
     />
   )
 }

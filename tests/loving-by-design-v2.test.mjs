@@ -228,12 +228,14 @@ test('synastry and HD composite refuse to generate until both partners submit', 
 test('product clients start generation only once the partner has submitted', () => {
   for (const f of ['app/products/synastry/SynastryProductClient.tsx', 'app/products/hd-composite/HdCompositeProductClient.tsx']) {
     const s = src(f)
-    assert.match(s, /if \(!intakeComplete \|\| !partnerChartReady \|\| !partnerIntakeComplete\) return/, f)
-    assert.match(s, /Your reading generates after your partner submits theirs\./, f)
+    assert.match(s, /if \(!readingsAvailable \|\| !intakeComplete \|\| !partnerChartReady \|\| !partnerIntakeComplete\) return/, f)
+    assert.match(s, /\{!partnerIntakeComplete && <PartnerInvitePanel \/>\}/, f)
   }
+  assert.match(src('components/intake/PartnerInvitePanel.tsx'), /Your reading generates after your partner submits theirs\./)
   for (const f of ['app/products/synastry/page.tsx', 'app/products/hd-composite/page.tsx']) {
     assert.match(src(f), /partnerIntakeComplete=\{partnerIntakeComplete\}/, f)
     assert.match(src(f), /await partnerIntakeSubmitted\(/, f)
+    assert.match(src(f), /readingsAvailable=\{LOVING_BY_DESIGN_READINGS_AVAILABLE\}/, f)
   }
 })
 
@@ -263,63 +265,99 @@ test('Partner B answers live only in the locked table, never on the partner char
   for (const s of [save, session]) {
     assert.doesNotMatch(s, /intake_relational/)
     assert.match(s, /PARTNER_INTAKE_TABLE/)
+    assert.match(s, /const partner = await verifiedPartner\(\)\n\s+if \('response' in partner\) return partner\.response/, 'email-verified session required')
+    assert.doesNotMatch(s, /token/i, 'no link token is accepted')
   }
   assert.match(save, /answers:\s+toRelationalSubmission\(answers, false\)/)
   assert.match(save, /missingRelationalAnswers/)
-  assert.match(save, /\.eq\('claim_hash', intake\.claim_hash\)\s*\.eq\('complete', false\)/)
-  assert.doesNotMatch(save, /body\.token|token\b.*=.*body/, 'the link token alone cannot write')
-  assert.match(save, /partner_intake_token_hash: null/, 'submit retires the link')
-  assert.match(session, /chart\.chart_label !== 'partner'/)
-  assert.match(session, /partnerTokenValid\(body\.token/)
+  assert.match(save, /invitationActive\(invitation\) \|\| invitation\.invitee_email !== email \|\| invitation\.purchaser_user_id === user\.id/)
+  assert.match(save, /intake\.partner_user_id !== user\.id/)
+  assert.match(save, /\.eq\('partner_user_id', user\.id\)\s*\.eq\('complete', false\)/)
+  assert.match(session, /filter\(inv => inv\.purchaser_user_id !== user\.id\)/, 'the purchaser can never open the partner form')
+  assert.match(session, /partner_user_id:\s+user\.id/)
   assert.match(session, /'23505'/, 'a concurrent first open loses')
+  assert.match(session, /intake\.partner_user_id !== user\.id/)
   assert.match(session, /toRelationalSubmission\(\(intake\.answers/, 'returns only the partner\'s own answer keys')
   assert.throws(() => src('app/api/save-partner-intake/route.ts'), 'old route that wrote to charts is gone')
+  assert.throws(() => src('lib/partner-intake-token.ts'), 'share-link token is gone')
+  assert.throws(() => src('lib/partner-intake-claim.ts'), 'first-opener claim is gone')
+  assert.doesNotMatch(src('app/api/save-intake/route.ts'), /partner_intake_path|partner_intake_token/)
 })
 
-test('migration: locked table, RLS on, no policies, no client grants; not applied by code', () => {
+test('migration: locked tables, RLS on, no policies, no client grants, binding and completion enforced in the database', () => {
   const m = read('../supabase/migrations/20261104_partner_relational_intakes.sql')
-  assert.match(m, /CREATE TABLE IF NOT EXISTS public\.partner_relational_intakes/)
-  assert.match(m, /ENABLE ROW LEVEL SECURITY/)
-  assert.match(m, /REVOKE ALL ON public\.partner_relational_intakes FROM anon, authenticated/)
+  for (const t of ['partner_invitations', 'partner_relational_intakes', 'partner_access_events']) {
+    assert.match(m, new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${t}`))
+    assert.match(m, new RegExp(`ALTER TABLE public\\.${t}\\s+ENABLE ROW LEVEL SECURITY`))
+    assert.match(m, new RegExp(`REVOKE ALL ON public\\.${t}\\s+FROM anon, authenticated`))
+  }
   assert.doesNotMatch(m, /CREATE POLICY/i)
-  assert.match(m, /claim_hash\s+text\s+NOT NULL/)
+  assert.match(m, /partner_user_id\s+uuid\s+NOT NULL/)
+  assert.match(m, /CREATE UNIQUE INDEX IF NOT EXISTS partner_invitations_one_active/)
+  assert.match(m, /CREATE TRIGGER partner_relational_intakes_guard/)
+  assert.doesNotMatch(m.replace('DROP TRIGGER IF EXISTS partner_relational_intakes_guard ON public.partner_relational_intakes;', ''), /DROP |TRUNCATE|DELETE FROM|ALTER TABLE public\.(charts|profiles)/i, 'additive only')
 })
 
-const claim = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(src('lib/partner-intake-claim.ts'),
+const access = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(src('lib/partner-access.ts'),
   { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64'))
 
-test('claim secret: random, hash-only storage, constant-time check', () => {
-  const { secret, hash } = claim.mintPartnerClaim()
-  assert.equal(hash.length, 64)
-  assert.notEqual(hash, secret)
-  assert.equal(claim.partnerClaimValid(secret, hash), true)
-  assert.equal(claim.partnerClaimValid(secret + 'x', hash), false)
-  assert.equal(claim.partnerClaimValid(claim.mintPartnerClaim().secret, hash), false)
-  assert.equal(claim.partnerClaimValid(undefined, hash), false)
-  assert.equal(claim.partnerClaimValid(secret, null), false)
-  assert.equal(claim.partnerClaimValid('short', hash), false)
+test('only a confirmed email-link session counts as Partner B', () => {
+  const user = { email: 'b@example.com', email_confirmed_at: '2026-01-01T00:00:00Z' }
+  assert.equal(access.emailLinkSession(user, [{ method: 'otp', timestamp: 1 }]), true)
+  assert.equal(access.emailLinkSession(user, ['magiclink']), true)
+  assert.equal(access.emailLinkSession(user, [{ method: 'password', timestamp: 1 }]), false, 'password sign-in refused')
+  assert.equal(access.emailLinkSession(user, [{ method: 'otp' }, { method: 'password' }]), false)
+  assert.equal(access.emailLinkSession(user, [{ method: 'oauth' }]), false)
+  assert.equal(access.emailLinkSession(user, []), false)
+  assert.equal(access.emailLinkSession(user, undefined), false)
+  assert.equal(access.emailLinkSession({ ...user, email_confirmed_at: undefined }, [{ method: 'otp' }]), false)
+  assert.equal(access.emailLinkSession(null, [{ method: 'otp' }]), false)
 })
 
-test('claim cookie: httpOnly, Secure, SameSite=strict, scoped to the partner API, per partner chart', () => {
-  const o = claim.partnerClaimCookieOptions('2030-01-01T00:00:00Z')
-  assert.equal(o.httpOnly, true)
-  assert.equal(o.secure, true)
-  assert.equal(o.sameSite, 'strict')
-  assert.equal(o.path, '/api/partner-intake')
-  const id = '0f8fad5b-d9cb-469f-a165-70867728950e'
-  assert.equal(claim.isPartnerChartId(id), true)
-  assert.equal(claim.isPartnerChartId('x; Path=/'), false)
-  assert.equal(claim.partnerClaimCookieName(id), `mp_partner_claim_${id}`)
+test('invitations: email normalised, expiry and revocation end access', () => {
+  assert.equal(access.normalizeEmail('  B@Example.COM '), 'b@example.com')
+  assert.equal(access.normalizeEmail('not-an-email'), null)
+  assert.equal(access.normalizeEmail('a@b.c'.padStart(300, 'x')), null)
+  assert.equal(access.normalizeEmail(42), null)
+  const now = Date.parse('2026-06-01T00:00:00Z')
+  assert.equal(access.invitationActive({ revoked_at: null, expires_at: '2026-06-02T00:00:00Z' }, now), true)
+  assert.equal(access.invitationActive({ revoked_at: null, expires_at: '2026-05-31T00:00:00Z' }, now), false)
+  assert.equal(access.invitationActive({ revoked_at: '2026-05-01T00:00:00Z', expires_at: '2026-06-02T00:00:00Z' }, now), false)
+  assert.equal(access.invitationActive(null, now), false)
+  assert.equal(access.isUuid('0f8fad5b-d9cb-469f-a165-70867728950e'), true)
+  assert.equal(access.isUuid("x' or 1=1"), false)
 })
 
-test('partner form resumes through the session route and shows the independence line', () => {
+test('invite and recovery routes: no link or token reaches the purchaser; rate limited; no address probing', () => {
+  const invite = src('app/api/partner-invite/route.ts')
+  assert.doesNotMatch(invite, /access_token|action_link|generateLink/)
+  assert.match(invite, /email === ctx\.ownEmail/)
+  assert.match(invite, /startedBy !== null && startedBy !== email/, 'reissue never moves the questionnaire to another address')
+  assert.match(invite, /if \(submitted\) return/)
+  assert.match(invite, /rateLimited\(ctx\.admin, 'invite', ctx\.userId, 5, HOUR\)/)
+  const acc = src('app/api/partner-intake/access/route.ts')
+  assert.match(acc, /rateLimited\(admin, 'access-ip'/)
+  assert.match(acc, /rateLimited\(admin, 'access-email', email, 3, HOUR\)/)
+  assert.equal((acc.match(/return NextResponse\.json\(\{ message: SENT \}\)/g) ?? []).length, 1, 'one reply whether or not the address is invited')
+  for (const f of ['app/api/partner-invite/route.ts', 'app/api/partner-intake/access/route.ts', 'lib/partner-access.ts', 'app/api/partner-intake/session/route.ts', 'app/api/partner-intake/save/route.ts']) {
+    for (const line of src(f).split('\n').filter(l => /console\.(log|error|warn)/.test(l))) {
+      assert.doesNotMatch(line, /email|answers|token|redirect/i, `${f}: ${line.trim()}`)
+    }
+  }
+})
+
+test('partner form signs in from the email link and resumes through the session route', () => {
   const b = src('components/intake/PartnerIntakeForm.tsx')
+  assert.match(b, /auth\.setSession\(\{ access_token, refresh_token \}\)/)
+  assert.match(b, /window\.history\.replaceState\(null, '', window\.location\.pathname\)/, 'fragment cleared')
   assert.match(b, /fetch\('\/api\/partner-intake\/session'/)
   assert.match(b, /fetch\('\/api\/partner-intake\/save'/)
-  assert.doesNotMatch(b, /JSON\.stringify\(\{ partner_chart_id: partnerChartId, token, answers/, 'token not sent on save')
+  assert.match(b, /fetch\('\/api\/partner-intake\/access'/)
+  assert.match(b, /JSON\.stringify\(\{ invitation_id: invitationId, answers, complete \}\)/)
   assert.match(b, /\{RELATIONAL_INDEPENDENT_COMPLETION\}/)
   assert.match(src('components/intake/RelationalIntakeForm.tsx'), /\{RELATIONAL_INDEPENDENT_COMPLETION\}/)
   assert.equal(iq.RELATIONAL_INDEPENDENT_COMPLETION, read('./fixtures/loving-by-design-v2.spec.txt').split('\n').map(l => l.trim()).find(l => l.startsWith('Each partner completes')))
+  assert.doesNotMatch(src('app/intake/partner/page.tsx'), /searchParams|get\('t'\)/)
 })
 
 test('product pages send only the partner chart id to the browser', () => {
@@ -360,6 +398,7 @@ test('Loving By Design stays closed to customers until switched on', () => {
   const gate = /const closed = lovingByDesignClosed\(\)\n\s+if \(closed\) return closed\n/
   for (const [f, handlers] of [
     ['app/api/autosave-intake/route.ts', 1], ['app/api/partner-intake/session/route.ts', 1], ['app/api/partner-intake/save/route.ts', 1],
+    ['app/api/partner-intake/access/route.ts', 1], ['app/api/partner-invite/route.ts', 3],
     ['app/api/interpret-synastry/route.ts', 2], ['app/api/interpret-composite/route.ts', 2],
   ]) {
     const body = src(f)
@@ -372,5 +411,17 @@ test('Loving By Design stays closed to customers until switched on', () => {
   }
   const list = src('app/products/page.tsx')
   assert.match(list, /const closed = !LOVING_BY_DESIGN_AVAILABLE && LOVING_BY_DESIGN_PRODUCTS\.includes\(product\.key\)/)
-  assert.match(list, /\{closed \? null : owned \?/)
+  assert.match(list, /const unsold = !owned && LOVING_BY_DESIGN_PRODUCTS\.includes\(product\.key\) && !lovingByDesignPurchasable\(\)/)
+  assert.match(list, /\{closed \|\| unsold \? null : owned \?/)
+})
+
+test('opening the questionnaire opens neither checkout nor readings', () => {
+  const avail = src('lib/product-availability.ts')
+  assert.match(avail, /export const LOVING_BY_DESIGN_PURCHASE_AVAILABLE = false\n/)
+  assert.match(avail, /export const LOVING_BY_DESIGN_READINGS_AVAILABLE = false\n/)
+  assert.match(src('app/api/stripe/checkout/route.ts'), /if \(!lovingByDesignPurchasable\(\) && lovingByDesignPriceIds\(\)\.includes\(priceId\)\) \{\n\s+return NextResponse\.json\(\{ error: 'This product is not yet available' \}, \{ status: 403 \}\)/)
+  for (const f of ['app/api/interpret-synastry/route.ts', 'app/api/interpret-composite/route.ts']) {
+    const post = src(f).split(/^export async function POST/m)[1]
+    assert.match(post.split('\n').slice(0, 6).join('\n'), /const readingsClosed = lovingByDesignReadingsClosed\(\)\n\s+if \(readingsClosed\) return readingsClosed/, f)
+  }
 })

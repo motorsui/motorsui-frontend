@@ -268,41 +268,6 @@ const S = {
     fontStyle: 'italic',
     marginTop: '16px',
   } as React.CSSProperties,
-
-  copyBox: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    backgroundColor: '#1a1410',
-    border: '1px solid rgba(154,124,46,0.25)',
-    borderRadius: '3px',
-    padding: '12px 16px',
-    marginTop: '16px',
-    marginBottom: '32px',
-  } as React.CSSProperties,
-
-  copyLink: {
-    flex: 1,
-    fontFamily: 'Georgia, serif',
-    fontSize: '13px',
-    color: 'rgba(244,241,232,0.65)',
-    wordBreak: 'break-all' as const,
-  } as React.CSSProperties,
-
-  copyBtn: {
-    backgroundColor: 'transparent',
-    color: '#9a7c2e',
-    border: '1px solid rgba(154,124,46,0.4)',
-    borderRadius: '3px',
-    padding: '6px 14px',
-    fontFamily: 'var(--font-raleway, sans-serif)',
-    fontSize: '10px',
-    fontWeight: 700,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
-  } as React.CSSProperties,
 }
 
 // ── Question field renderer ───────────────────────────────────────────────────
@@ -370,7 +335,7 @@ function QuestionField({
 interface RelationalIntakeFormProps {
   chartId: string
   initialAnswers?: Record<string, string>
-  onComplete: (partnerChartId: string, partnerLink: string) => Promise<void>
+  onComplete: (partnerChartId: string) => Promise<void>
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -380,8 +345,6 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers ?? {})
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [partnerLink, setPartnerLink] = useState('')
 
   const setAnswer = useCallback((id: string, value: string) => {
     setAnswers(prev => ({ ...prev, [id]: value }))
@@ -436,15 +399,10 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
           const e = await res.json().catch(() => ({}))
           throw new Error((e as Record<string, string>).error ?? 'Submission failed')
         }
-        const data = await res.json() as { partner_chart_id?: string; partner_intake_path?: string | null }
-        const pid = data.partner_chart_id ?? ''
-        const origin = typeof window !== 'undefined' ? window.location.origin : ''
-        // No path once the partner's intake is already submitted.
-        const link = data.partner_intake_path ? `${origin}${data.partner_intake_path}` : ''
-        setPartnerLink(link)
+        const data = await res.json() as { partner_chart_id?: string }
         setStep(CONFIRM_STEP)
         scrollTop()
-        await onComplete(pid, link)
+        await onComplete(data.partner_chart_id ?? '')
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Submission failed. Please try again.')
       } finally {
@@ -534,27 +492,8 @@ export default function RelationalIntakeForm({ chartId, initialAnswers, onComple
           <p style={S.eyebrow}>MOTORSUI</p>
           <h1 style={S.heading}>Your intake is complete.</h1>
           <p style={S.subtitle}>
-            Share the link below with your partner so they can complete their intake. The reading generates after both forms are submitted.
+            Invite your partner by email so they can complete their own intake. Their answers stay private to them.
           </p>
-          {partnerLink && (
-            <>
-              <p style={{ ...S.label, marginBottom: '8px' }}>Partner link</p>
-              <div style={S.copyBox}>
-                <span style={S.copyLink}>{partnerLink}</span>
-                <button
-                  style={S.copyBtn}
-                  onClick={() => {
-                    navigator.clipboard.writeText(partnerLink).then(() => {
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
-                    })
-                  }}
-                >
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-            </>
-          )}
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: 'rgba(244,241,232,0.5)', lineHeight: 1.6 }}>
             Your reading will appear on this page once your partner has also submitted their intake.
           </p>
