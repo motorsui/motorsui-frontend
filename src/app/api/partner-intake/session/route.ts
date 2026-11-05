@@ -10,6 +10,7 @@ import {
   partnerClaimValid,
 } from '@/lib/partner-intake-claim'
 import { RELATIONAL_QUESTIONNAIRE_VERSION, toRelationalSubmission } from '@/lib/intake-questions'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 
 // Opened by the partner form on load (/intake/partner?id=&t=). The partner is
 // not signed in.
@@ -24,6 +25,8 @@ import { RELATIONAL_QUESTIONNAIRE_VERSION, toRelationalSubmission } from '@/lib/
 const INVALID = 'This link is invalid or has expired'
 
 export async function POST(request: NextRequest) {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const body = await request.json().catch(() => ({})) as { partner_chart_id?: unknown; token?: unknown }
   const partnerChartId = body.partner_chart_id
   if (!isPartnerChartId(partnerChartId)) return NextResponse.json({ error: INVALID }, { status: 403 })

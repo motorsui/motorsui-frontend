@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { RELATIONAL_QUESTIONNAIRE_VERSION, relationalIntakeVersion, toRelationalSubmission } from '@/lib/intake-questions'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 
 export async function POST(request: NextRequest) {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

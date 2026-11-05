@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import Header from '@/components/layout/Header'
 import CheckoutButton from '@/components/ui/CheckoutButton'
+import { LOVING_BY_DESIGN_AVAILABLE, LOVING_BY_DESIGN_PRODUCTS } from '@/lib/product-availability'
 
 interface Product {
   key:         string
@@ -109,18 +110,19 @@ export default async function ProductsPage() {
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {PRODUCTS.map((product) => {
-            const owned = purchased.includes(product.key)
+            const closed = !LOVING_BY_DESIGN_AVAILABLE && LOVING_BY_DESIGN_PRODUCTS.includes(product.key)
+            const owned  = !closed && purchased.includes(product.key)
 
             return (
               <div key={product.key} className={row}>
                 <div>
                   <p className={`${tag} ${owned ? 'text-[#9a7c2e]' : 'text-[#9a7c2e]/70'} mb-3`}>
-                    {owned ? 'Purchased' : 'Paid · Unlock'}
+                    {closed ? 'Not yet available' : owned ? 'Purchased' : 'Paid · Unlock'}
                   </p>
                   <h2 className={h2}>{product.name}</h2>
                 </div>
                 <p className={body}>{product.description}</p>
-                {owned ? (
+                {closed ? null : owned ? (
                   <Link href={product.href} className={btn}>
                     View Report
                   </Link>

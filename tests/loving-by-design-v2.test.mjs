@@ -352,3 +352,25 @@ test('both relationship forms use the approved heading from the source document'
     assert.doesNotMatch(body, /Relational Intake Form/)
   }
 })
+
+test('Loving By Design stays closed to customers until switched on', () => {
+  const avail = src('lib/product-availability.ts')
+  assert.match(avail, /export const LOVING_BY_DESIGN_AVAILABLE = false\n/)
+  assert.match(avail, /\['synastry_report', 'hd_composite_report'\]/)
+  const gate = /const closed = lovingByDesignClosed\(\)\n\s+if \(closed\) return closed\n/
+  for (const [f, handlers] of [
+    ['app/api/autosave-intake/route.ts', 1], ['app/api/partner-intake/session/route.ts', 1], ['app/api/partner-intake/save/route.ts', 1],
+    ['app/api/interpret-synastry/route.ts', 2], ['app/api/interpret-composite/route.ts', 2],
+  ]) {
+    const body = src(f)
+    const found = body.split(/^export async function /m).slice(1).filter(h => gate.test(h.split('\n').slice(0, 4).join('\n') + '\n')).length
+    assert.equal(found, handlers, `${f}: every handler starts with the gate`)
+  }
+  assert.match(src('app/api/save-intake/route.ts'), /if \(formType === 'relational'\) \{\n\s+const closed = lovingByDesignClosed\(\)\n\s+if \(closed\) return closed\n/)
+  for (const f of ['app/products/synastry/page.tsx', 'app/products/hd-composite/page.tsx']) {
+    assert.match(src(f), /if \(!user\) redirect\('\/login'\)\n\s+if \(!LOVING_BY_DESIGN_AVAILABLE\) redirect\('\/products'\)\n/)
+  }
+  const list = src('app/products/page.tsx')
+  assert.match(list, /const closed = !LOVING_BY_DESIGN_AVAILABLE && LOVING_BY_DESIGN_PRODUCTS\.includes\(product\.key\)/)
+  assert.match(list, /\{closed \? null : owned \?/)
+})

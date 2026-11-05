@@ -8,6 +8,7 @@ import {
 } from '@/lib/interpret/backend'
 import { buildPairIntakePayload } from '@/lib/intake-questions'
 import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 
 // ─── Loving Astro (synastry) ──────────────────────────────────────────────────
 //
@@ -268,6 +269,8 @@ function buildSynastryUserMessage(section: SynSectionDef, payloadStr: string): s
 
 // Returns the caller's stored synastry row (RLS keeps pair rows server-side).
 export async function GET() {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return jsonError('Unauthorized', 401)
@@ -280,6 +283,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return jsonError('Unauthorized', 401)

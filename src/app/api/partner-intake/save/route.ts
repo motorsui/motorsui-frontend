@@ -12,6 +12,7 @@ import {
   missingRelationalAnswers,
   toRelationalSubmission,
 } from '@/lib/intake-questions'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 
 // Autosave and final submit for the partner's intake. The credential is the
 // claim cookie set by /api/partner-intake/session; the link token alone is
@@ -32,6 +33,8 @@ function validAnswers(answers: unknown): answers is Record<string, string> {
 }
 
 export async function POST(request: NextRequest) {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const body = await request.json().catch(() => ({})) as { partner_chart_id?: unknown; answers?: unknown; complete?: unknown }
   const { partner_chart_id: partnerChartId, answers } = body
   const complete = body.complete === true

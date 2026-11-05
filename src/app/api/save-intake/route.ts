@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { mintPartnerToken, partnerIntakePath } from '@/lib/partner-intake-token'
 import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 import {
   PARENTING_QUESTIONNAIRE_VERSION,
   RELATIONAL_QUESTIONNAIRE_VERSION,
@@ -198,6 +199,8 @@ export async function POST(request: NextRequest) {
 
   // ─── Relational intake (Products 5-6) ────────────────────────────────────
   if (formType === 'relational') {
+    const closed = lovingByDesignClosed()
+    if (closed) return closed
     // One submitted intake per purchaser chart; an intake begun on an earlier
     // version is never overwritten. The partner's own row is written only
     // through their share link, never from here.

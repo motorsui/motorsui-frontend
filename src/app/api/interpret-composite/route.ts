@@ -9,6 +9,7 @@ import {
 } from '@/lib/interpret/backend'
 import { buildPairIntakePayload } from '@/lib/intake-questions'
 import { loadSubmittedPartnerAnswers } from '@/lib/partner-intake-claim'
+import { lovingByDesignClosed } from '@/lib/product-availability'
 
 // ─── Loving HD (composite) ────────────────────────────────────────────────────
 //
@@ -382,6 +383,8 @@ function storedText(row: Record<string, unknown> | null, jobs: Map<string, Chann
 // Returns the caller's stored composite row, the channel sections this pair is
 // offered, and which sections are still missing (RLS keeps pair rows server-side).
 export async function GET() {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const ctx = await resolve()
   if (ctx instanceof Response) return ctx
   const { data } = await createAdminClient()
@@ -397,6 +400,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const closed = lovingByDesignClosed()
+  if (closed) return closed
   const ctx = await resolve()
   if (ctx instanceof Response) return ctx
   const { self, partner, birthA, birthB } = ctx

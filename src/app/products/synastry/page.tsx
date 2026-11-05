@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { partnerIntakeSubmitted } from '@/lib/partner-intake-claim'
+import { LOVING_BY_DESIGN_AVAILABLE } from '@/lib/product-availability'
 import SynastryProductClient from './SynastryProductClient'
 
 export default async function SynastryProductPage() {
@@ -8,6 +9,7 @@ export default async function SynastryProductPage() {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  if (!LOVING_BY_DESIGN_AVAILABLE) redirect('/products')
 
   const { data: profile } = await supabase
     .from('profiles')
