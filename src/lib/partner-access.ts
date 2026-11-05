@@ -106,12 +106,14 @@ export async function sendPartnerSignInLink(email: string, redirectTo: string): 
 }
 
 // Where the email link returns Partner B. The address must be on the Supabase
-// Auth redirect allow-list, or Auth falls back to the project's Site URL.
+// Auth redirect allow-list, or Auth falls back to the project's Site URL (the
+// GHL site), which would put Partner B's tokens on a third-party page. Any host
+// other than localhost (development) therefore gets the production address.
 export function partnerRedirectUrl(headers: Headers): string {
   if (process.env.PARTNER_AUTH_REDIRECT_URL) return process.env.PARTNER_AUTH_REDIRECT_URL
-  const host  = headers.get('x-forwarded-host') ?? headers.get('host') ?? 'charts.motorsui.com'
-  const proto = headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
-  return `${proto}://${host}/intake/partner`
+  const host = headers.get('x-forwarded-host') ?? headers.get('host') ?? ''
+  if (/^localhost(:\d+)?$/.test(host)) return `http://${host}/intake/partner`
+  return 'https://charts.motorsui.com/intake/partner'
 }
 
 // ── Reads ───────────────────────────────────────────────────────────────────

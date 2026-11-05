@@ -11,7 +11,7 @@
 //     prompt; today nothing outside the model prevents a reading from quoting
 //     them to the purchaser.
 
-export const LOVING_BY_DESIGN_AVAILABLE = false
+export const LOVING_BY_DESIGN_AVAILABLE = true
 
 export const LOVING_BY_DESIGN_PURCHASE_AVAILABLE = false
 

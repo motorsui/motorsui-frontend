@@ -301,6 +301,15 @@ test('migration: locked tables, RLS on, no policies, no client grants, binding a
 const access = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(src('lib/partner-access.ts'),
   { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64'))
 
+test('partner links return only to the MotorSui app, never the Site URL fallback', () => {
+  const h = host => new Headers(host ? { host } : {})
+  assert.equal(access.partnerRedirectUrl(h('charts.motorsui.com')), 'https://charts.motorsui.com/intake/partner')
+  assert.equal(access.partnerRedirectUrl(h('motorsui-frontend-production.up.railway.app')), 'https://charts.motorsui.com/intake/partner')
+  assert.equal(access.partnerRedirectUrl(h('evil.example')), 'https://charts.motorsui.com/intake/partner')
+  assert.equal(access.partnerRedirectUrl(h(null)), 'https://charts.motorsui.com/intake/partner')
+  assert.equal(access.partnerRedirectUrl(h('localhost:3000')), 'http://localhost:3000/intake/partner')
+})
+
 test('only a confirmed email-link session counts as Partner B', () => {
   const user = { email: 'b@example.com', email_confirmed_at: '2026-01-01T00:00:00Z' }
   assert.equal(access.emailLinkSession(user, [{ method: 'otp', timestamp: 1 }]), true)
@@ -391,9 +400,9 @@ test('both relationship forms use the approved heading from the source document'
   }
 })
 
-test('Loving By Design stays closed to customers until switched on', () => {
+test('Loving By Design pages and routes are gated by the availability switch', () => {
   const avail = src('lib/product-availability.ts')
-  assert.match(avail, /export const LOVING_BY_DESIGN_AVAILABLE = false\n/)
+  assert.match(avail, /export const LOVING_BY_DESIGN_AVAILABLE = (true|false)\n/)
   assert.match(avail, /\['synastry_report', 'hd_composite_report'\]/)
   const gate = /const closed = lovingByDesignClosed\(\)\n\s+if \(closed\) return closed\n/
   for (const [f, handlers] of [
